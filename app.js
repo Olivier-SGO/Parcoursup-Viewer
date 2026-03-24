@@ -82,16 +82,23 @@ function analyze() {
     _showResults();
 }
 
+// Retour au formulaire sans effacer la session sauvegardée
 function reset() {
     allGroups    = [];
     activeFilter = 'all';
-    document.getElementById('pasteArea').value          = '';
+    document.getElementById('pasteArea').value            = '';
     document.getElementById('resultsContainer').innerHTML = '';
-    document.getElementById('inputSection').hidden      = false;
-    document.getElementById('resultsSection').hidden    = true;
+    document.getElementById('inputSection').hidden        = false;
+    document.getElementById('resultsSection').hidden      = true;
     document.querySelectorAll('.filter-btn').forEach(b => {
         b.classList.toggle('active', b.dataset.filter === 'all');
     });
+}
+
+// RAZ complète : efface la session persistée et revient à l'état initial
+function clearAll() {
+    try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
+    reset();
 }
 
 function applyFilter(filter) {
@@ -189,7 +196,6 @@ function _saveCurrentOrder() {
 
 function _showResults() {
     _renderResults();
-    document.getElementById('inputSection').hidden   = false; // keep accessible for mobile back
     document.getElementById('inputSection').hidden   = true;
     document.getElementById('resultsSection').hidden = false;
 }

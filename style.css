@@ -159,6 +159,20 @@ button:hover {
     background: var(--color-bg);
 }
 
+.btn-danger {
+    margin-top: 0;
+    padding: 0.45rem 1rem;
+    font-size: 0.85rem;
+    background: transparent;
+    color: #b91c1c;
+    border: 1px solid #fca5a5;
+    border-radius: var(--radius);
+}
+
+.btn-danger:hover {
+    background: #fef2f2;
+}
+
 /* ── Filter bar ──────────────────────────────────────── */
 
 .filter-bar {
