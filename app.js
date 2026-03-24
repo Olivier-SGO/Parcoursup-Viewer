@@ -384,6 +384,11 @@ function _cycleStatus(li) {
 }
 
 // ── Drag-and-drop sortable (pointer events — desktop + iPad) ──────────────────
+//
+// Règles clés :
+//   • PAS de preventDefault() sur pointerdown → évite pointercancel immédiat sur iOS
+//   • setPointerCapture sur l'élément déplacé → tous les events restent sur lui
+//   • preventDefault() uniquement dans pointermove { passive:false } → bloque le scroll
 
 function makeSortable(container, childSel, handleSel, onReorder) {
     container.addEventListener('pointerdown', e => {
@@ -392,16 +397,19 @@ function makeSortable(container, childSel, handleSel, onReorder) {
         const child = handle.closest(childSel);
         if (!child || child.parentElement !== container) return;
 
-        e.preventDefault();
         child.classList.add('dragging');
+        document.body.style.userSelect = 'none';
 
         const ph = document.createElement(child.tagName === 'LI' ? 'li' : 'div');
         ph.className    = 'drag-placeholder';
         ph.style.height = child.getBoundingClientRect().height + 'px';
         child.after(ph);
 
+        // Capture : tous les pointermove/pointerup suivants arrivent sur child
+        child.setPointerCapture(e.pointerId);
+
         function onMove(ev) {
-            ev.preventDefault();
+            ev.preventDefault(); // bloque le scroll pendant le déplacement
             const siblings = [...container.children]
                 .filter(c => c !== child && c !== ph && !c.hidden);
             let placed = false;
@@ -419,14 +427,15 @@ function makeSortable(container, childSel, handleSel, onReorder) {
         function onUp() {
             ph.replaceWith(child);
             child.classList.remove('dragging');
-            document.removeEventListener('pointermove', onMove);
-            document.removeEventListener('pointerup',   onUp);
-            document.removeEventListener('pointercancel', onUp);
+            document.body.style.userSelect = '';
+            child.removeEventListener('pointermove',   onMove);
+            child.removeEventListener('pointerup',     onUp);
+            child.removeEventListener('pointercancel', onUp);
             onReorder();
         }
 
-        document.addEventListener('pointermove',   onMove);
-        document.addEventListener('pointerup',     onUp);
-        document.addEventListener('pointercancel', onUp);
+        child.addEventListener('pointermove',   onMove, { passive: false });
+        child.addEventListener('pointerup',     onUp);
+        child.addEventListener('pointercancel', onUp);
     });
 }
