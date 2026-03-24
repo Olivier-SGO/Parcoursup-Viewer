@@ -153,6 +153,7 @@ function itemKey(item) {
 }
 
 function applyStoredOrder(saved) {
+    // 1. Ordre des groupes
     if (saved.groupOrder && saved.groupOrder.length) {
         allGroups.sort((a, b) => {
             const ia = saved.groupOrder.indexOf(a.name);
@@ -163,18 +164,37 @@ function applyStoredOrder(saved) {
             return ia - ib;
         });
     }
-    if (saved.itemOrders) {
-        for (const group of allGroups) {
-            const order = saved.itemOrders[group.name];
-            if (!order || !order.length) continue;
-            group.items.sort((a, b) => {
-                const ia = order.indexOf(itemKey(a));
-                const ib = order.indexOf(itemKey(b));
-                if (ia === -1 && ib === -1) return 0;
-                if (ia === -1) return 1;
-                if (ib === -1) return -1;
-                return ia - ib;
-            });
+
+    if (!saved.itemOrders) return;
+
+    // 2. Table de tous les items (clé → {item, groupe d'origine})
+    const itemMap = {};
+    for (const group of allGroups) {
+        for (const item of group.items) {
+            itemMap[itemKey(item)] = { item, originGroup: group.name };
+        }
+    }
+
+    // 3. Vider les listes, puis les repeupler selon l'ordre sauvegardé
+    //    (un item peut avoir été déplacé dans un autre groupe)
+    for (const group of allGroups) group.items = [];
+
+    const placed = new Set();
+    for (const group of allGroups) {
+        const order = saved.itemOrders[group.name] || [];
+        for (const k of order) {
+            if (itemMap[k]) {
+                group.items.push(itemMap[k].item);
+                placed.add(k);
+            }
+        }
+    }
+
+    // 4. Ré-insérer les items absents de la sauvegarde dans leur groupe d'origine
+    for (const [k, { item, originGroup }] of Object.entries(itemMap)) {
+        if (!placed.has(k)) {
+            const g = allGroups.find(g => g.name === originGroup);
+            if (g) g.items.push(item);
         }
     }
 }
@@ -211,14 +231,11 @@ function _renderResults() {
         container.appendChild(_buildGroupSection(group, overrides));
     }
 
+    // Drag groupes (réordonner les blocs)
     makeSortable(container, '.group-section', '.drag-handle--group', _saveCurrentOrder);
 
-    for (const list of container.querySelectorAll('.items-list')) {
-        makeSortable(list, '.item', '.drag-handle--item', () => {
-            _updateRanks(list.closest('.group-section'));
-            _saveCurrentOrder();
-        });
-    }
+    // Drag items : zone globale — permet le déplacement ENTRE groupes
+    makeItemsSortable(container, _saveCurrentOrder);
 
     _applyFilterToDOM();
 }
@@ -389,6 +406,72 @@ function _cycleStatus(li) {
 //   • PAS de preventDefault() sur pointerdown → évite pointercancel immédiat sur iOS
 //   • setPointerCapture sur l'élément déplacé → tous les events restent sur lui
 //   • preventDefault() uniquement dans pointermove { passive:false } → bloque le scroll
+
+// Drag items cross-groupes : un item peut être déposé dans n'importe quel groupe.
+function makeItemsSortable(resultsContainer, onReorder) {
+    resultsContainer.addEventListener('pointerdown', e => {
+        const handle = e.target.closest('.drag-handle--item');
+        if (!handle) return;
+        const child = handle.closest('.item');
+        if (!child) return;
+
+        child.classList.add('dragging');
+        document.body.style.userSelect = 'none';
+
+        const ph = document.createElement('li');
+        ph.className    = 'drag-placeholder';
+        ph.style.height = child.getBoundingClientRect().height + 'px';
+        child.after(ph);
+
+        child.setPointerCapture(e.pointerId);
+
+        // Retourne la .items-list du groupe sous le pointeur (Y)
+        function getTargetList(y) {
+            const sections = [...resultsContainer.querySelectorAll('.group-section:not([hidden])')];
+            if (!sections.length) return null;
+            for (const sec of sections) {
+                if (y < sec.getBoundingClientRect().bottom) {
+                    return sec.querySelector('.items-list');
+                }
+            }
+            return sections[sections.length - 1].querySelector('.items-list');
+        }
+
+        function onMove(ev) {
+            ev.preventDefault();
+            const targetList = getTargetList(ev.clientY) || ph.parentElement;
+            const siblings = [...targetList.children]
+                .filter(c => c !== child && c !== ph && !c.hidden);
+            let placed = false;
+            for (const sib of siblings) {
+                const r = sib.getBoundingClientRect();
+                if (ev.clientY < r.top + r.height / 2) {
+                    targetList.insertBefore(ph, sib);
+                    placed = true;
+                    break;
+                }
+            }
+            if (!placed) targetList.appendChild(ph);
+        }
+
+        function onUp() {
+            ph.replaceWith(child);
+            child.classList.remove('dragging');
+            document.body.style.userSelect = '';
+            child.removeEventListener('pointermove', onMove);
+            child.removeEventListener('pointerup',   onUp);
+            child.removeEventListener('pointercancel', onUp);
+            // Mise à jour rangs et compteurs pour tous les groupes
+            resultsContainer.querySelectorAll('.group-section').forEach(_updateRanks);
+            _applyFilterToDOM();
+            onReorder();
+        }
+
+        child.addEventListener('pointermove',   onMove, { passive: false });
+        child.addEventListener('pointerup',     onUp);
+        child.addEventListener('pointercancel', onUp);
+    });
+}
 
 function makeSortable(container, childSel, handleSel, onReorder) {
     container.addEventListener('pointerdown', e => {
