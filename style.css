@@ -374,16 +374,24 @@ button:hover {
 
 /* ── Drag states ─────────────────────────────────────── */
 
-.item.dragging,
+.item.dragging {
+    opacity: 0.55;
+    outline: 2px dashed var(--color-primary);
+    outline-offset: -2px;
+    border-radius: var(--radius);
+}
+
 .group-section.dragging {
-    opacity: 0.35;
+    opacity: 0.55;
+    outline: 2px dashed var(--color-primary);
 }
 
 .drag-placeholder {
-    background: var(--color-primary);
-    opacity: 0.25;
+    background: transparent;
+    border: 2px dashed var(--color-primary);
+    opacity: 0.55;
     border-radius: var(--radius);
-    margin: 2px 1rem;
+    margin: 3px 1rem;
     list-style: none;
 }
 
