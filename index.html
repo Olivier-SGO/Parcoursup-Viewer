@@ -10,7 +10,7 @@
     <div class="container">
         <header>
             <h1>Parcoursup Viewer</h1>
-            <p class="subtitle">Visualisez vos sous-vœux Parcoursup</p>
+            <p class="subtitle">Visualisez et classez vos sous-vœux Parcoursup</p>
         </header>
 
         <section class="input-section" id="inputSection">
@@ -27,8 +27,19 @@
         <section class="results-section" id="resultsSection" hidden>
             <div class="results-header">
                 <h2>Vos sous-vœux</h2>
-                <button class="btn-secondary" onclick="reset()">← Recommencer</button>
+                <div class="results-actions">
+                    <button class="btn-export" onclick="exportRanking()">Copier le classement</button>
+                    <button class="btn-secondary" onclick="reset()">← Recommencer</button>
+                </div>
             </div>
+
+            <div class="filter-bar">
+                <span class="filter-label">Afficher :</span>
+                <button class="filter-btn active" data-filter="all"        onclick="applyFilter('all')">Tous</button>
+                <button class="filter-btn"         data-filter="confirmed"  onclick="applyFilter('confirmed')">✓ Confirmés</button>
+                <button class="filter-btn"         data-filter="incomplete" onclick="applyFilter('incomplete')">⚠ Incomplets</button>
+            </div>
+
             <div id="resultsContainer"></div>
         </section>
     </div>

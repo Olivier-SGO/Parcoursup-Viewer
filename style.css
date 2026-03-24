@@ -126,12 +126,76 @@ button:hover {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 1.25rem;
+    gap: 0.75rem;
+    margin-bottom: 0.875rem;
+    flex-wrap: wrap;
 }
 
 .results-header h2 {
     font-size: 1.4rem;
     font-weight: 700;
+}
+
+.results-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+/* ── Export button ───────────────────────────────────── */
+
+.btn-export {
+    margin-top: 0;
+    padding: 0.45rem 1rem;
+    font-size: 0.85rem;
+    background: transparent;
+    color: var(--color-primary);
+    border: 1px solid var(--color-primary);
+    border-radius: var(--radius);
+}
+
+.btn-export:hover {
+    background: var(--color-bg);
+}
+
+/* ── Filter bar ──────────────────────────────────────── */
+
+.filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+}
+
+.filter-label {
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+}
+
+.filter-btn {
+    margin-top: 0;
+    padding: 0.3rem 0.85rem;
+    font-size: 0.82rem;
+    font-weight: 500;
+    background: transparent;
+    color: var(--color-text-muted);
+    border: 1px solid var(--color-border);
+    border-radius: 9999px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.filter-btn:hover {
+    background: var(--color-bg);
+    color: var(--color-text);
+}
+
+.filter-btn.active {
+    background: var(--color-primary);
+    color: white;
+    border-color: var(--color-primary);
 }
 
 /* ── Group cards ─────────────────────────────────────── */
@@ -146,8 +210,7 @@ button:hover {
 
 .group-header {
     display: flex;
-    align-items: baseline;
-    justify-content: space-between;
+    align-items: center;
     gap: 0.5rem;
     padding: 0.875rem 1.25rem;
     border-bottom: 1px solid var(--color-border);
@@ -155,6 +218,7 @@ button:hover {
 }
 
 .group-name {
+    flex: 1;
     font-size: 0.975rem;
     font-weight: 600;
     color: var(--color-text);
@@ -176,14 +240,51 @@ button:hover {
 .item {
     display: flex;
     align-items: flex-start;
-    gap: 0.75rem;
-    padding: 0.625rem 1.25rem;
+    gap: 0.6rem;
+    padding: 0.625rem 1.25rem 0.625rem 0.75rem;
     border-bottom: 1px solid var(--color-border);
 }
 
 .item:last-child {
     border-bottom: none;
 }
+
+/* ── Drag handle ─────────────────────────────────────── */
+
+.drag-handle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    min-width: 20px;
+    cursor: grab;
+    color: #cbd5e1;
+    user-select: none;
+    touch-action: none;
+    flex-shrink: 0;
+    margin-top: 0.15rem;
+}
+
+.drag-handle:hover  { color: var(--color-text-muted); }
+.drag-handle:active { cursor: grabbing; }
+
+.drag-handle--group {
+    margin-top: 0;
+}
+
+/* ── Rank number ─────────────────────────────────────── */
+
+.item-rank {
+    flex-shrink: 0;
+    min-width: 1.4rem;
+    text-align: right;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--color-text-muted);
+    margin-top: 0.2rem;
+}
+
+/* ── Status badge ────────────────────────────────────── */
 
 .status-badge {
     flex-shrink: 0;
@@ -195,24 +296,22 @@ button:hover {
     margin-top: 0.15rem;
 }
 
-.status-badge.confirmed {
-    color: var(--color-confirmed);
-    background: var(--color-confirmed-bg);
-}
+.status-badge.confirmed  { color: var(--color-confirmed);  background: var(--color-confirmed-bg); }
+.status-badge.incomplete { color: var(--color-incomplete); background: var(--color-incomplete-bg); }
+.status-badge.unknown    { color: var(--color-text-muted); background: var(--color-border); }
 
-.status-badge.incomplete {
-    color: var(--color-incomplete);
-    background: var(--color-incomplete-bg);
-}
-
-.status-badge.unknown {
-    color: var(--color-text-muted);
-    background: var(--color-border);
-}
+/* ── Item content ────────────────────────────────────── */
 
 .item-content {
     flex: 1;
     min-width: 0;
+}
+
+.item-name-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.3rem;
 }
 
 .item-name {
@@ -227,6 +326,41 @@ button:hover {
     margin-top: 0.1rem;
 }
 
+/* ── Type badges ─────────────────────────────────────── */
+
+.type-badge {
+    font-size: 0.62rem;
+    font-weight: 700;
+    padding: 0.1rem 0.4rem;
+    border-radius: 9999px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.type-badge.ingenieur { background: #ede9fe; color: #6d28d9; }
+.type-badge.but       { background: #cffafe; color: #0e7490; }
+.type-badge.cpge      { background: #dbeafe; color: #1d4ed8; }
+.type-badge.licence   { background: #d1fae5; color: #065f46; }
+.type-badge.bachelor  { background: #ffedd5; color: #c2410c; }
+.type-badge.dnt       { background: #fce7f3; color: #9d174d; }
+
+/* ── Drag states ─────────────────────────────────────── */
+
+.item.dragging,
+.group-section.dragging {
+    opacity: 0.35;
+}
+
+.drag-placeholder {
+    background: var(--color-primary);
+    opacity: 0.12;
+    border-radius: var(--radius);
+    margin: 2px 1rem;
+    list-style: none;
+}
+
 /* ── Responsive ──────────────────────────────────────── */
 
 @media (max-width: 500px) {
@@ -234,12 +368,12 @@ button:hover {
         font-size: 1.5rem;
     }
 
-    .group-header {
+    .results-header {
         flex-direction: column;
-        gap: 0.15rem;
+        align-items: flex-start;
     }
 
     .item {
-        padding: 0.625rem 1rem;
+        padding: 0.625rem 0.75rem;
     }
 }
