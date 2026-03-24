@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parcoursup Viewer</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Parcoursup Viewer</h1>
+            <p class="subtitle">Visualisez vos sous-vœux Parcoursup</p>
+        </header>
+
+        <section class="input-section" id="inputSection">
+            <label for="pasteArea">Collez le texte copié depuis votre page de vœux Parcoursup :</label>
+            <textarea
+                id="pasteArea"
+                placeholder="Sélectionnez tout le contenu de la page Parcoursup (Ctrl+A / Cmd+A) puis collez-le ici…"
+                rows="14"
+                spellcheck="false"
+            ></textarea>
+            <button id="analyzeBtn" onclick="analyze()">Analyser mes vœux</button>
+        </section>
+
+        <section class="results-section" id="resultsSection" hidden>
+            <div class="results-header">
+                <h2>Vos sous-vœux</h2>
+                <button class="btn-secondary" onclick="reset()">← Recommencer</button>
+            </div>
+            <div id="resultsContainer"></div>
+        </section>
+    </div>
+
+    <script src="parser.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
