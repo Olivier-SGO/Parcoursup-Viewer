@@ -204,8 +204,11 @@ function _renderResults() {
     const container = document.getElementById('resultsContainer');
     container.innerHTML = '';
 
+    const saved     = storageLoad();
+    const overrides = (saved && saved.statusOverrides) ? saved.statusOverrides : {};
+
     for (const group of allGroups) {
-        container.appendChild(_buildGroupSection(group));
+        container.appendChild(_buildGroupSection(group, overrides));
     }
 
     makeSortable(container, '.group-section', '.drag-handle--group', _saveCurrentOrder);
@@ -220,7 +223,7 @@ function _renderResults() {
     _applyFilterToDOM();
 }
 
-function _buildGroupSection(group) {
+function _buildGroupSection(group, overrides) {
     const section = document.createElement('div');
     section.className       = 'group-section';
     section.dataset.groupName = group.name;
@@ -243,17 +246,19 @@ function _buildGroupSection(group) {
 
     const list = document.createElement('ul');
     list.className = 'items-list';
-    group.items.forEach((item, i) => list.appendChild(_buildItem(item, i + 1)));
+    group.items.forEach((item, i) => list.appendChild(_buildItem(item, i + 1, overrides)));
     section.appendChild(list);
 
     return section;
 }
 
-function _buildItem(item, rank) {
+function _buildItem(item, rank, overrides) {
     const li = document.createElement('li');
-    li.className        = 'item';
-    li.dataset.status   = item.status || 'unknown';
-    li.dataset.itemKey  = itemKey(item);
+    li.className       = 'item';
+    li.dataset.itemKey = itemKey(item);
+
+    const status = (overrides && overrides[itemKey(item)]) || item.status || 'unknown';
+    li.dataset.status = status;
 
     const type = getFormationType(item.detail);
     if (type) li.dataset.type = type;
@@ -266,16 +271,10 @@ function _buildItem(item, rank) {
     li.appendChild(rankEl);
 
     const badge = document.createElement('span');
-    if (item.status === 'confirmed') {
-        badge.className   = 'status-badge confirmed';
-        badge.textContent = '✓ Confirmé';
-    } else if (item.status === 'incomplete') {
-        badge.className   = 'status-badge incomplete';
-        badge.textContent = '⚠ Incomplet';
-    } else {
-        badge.className   = 'status-badge unknown';
-        badge.textContent = '— ?';
-    }
+    badge.className = 'status-badge';
+    badge.title     = 'Cliquer pour modifier le statut';
+    _applyStatusToBadge(badge, status);
+    badge.addEventListener('click', () => _cycleStatus(li));
     li.appendChild(badge);
 
     const content = document.createElement('div');
@@ -356,6 +355,32 @@ function _updateRanks(section) {
     for (const item of section.querySelectorAll('.item')) {
         if (!item.hidden) item.querySelector('.item-rank').textContent = r++;
     }
+}
+
+// ── Status override ───────────────────────────────────────────────────────────
+
+const STATUS_CYCLE = ['confirmed', 'incomplete', 'unknown'];
+
+function _applyStatusToBadge(badge, status) {
+    badge.className = 'status-badge ' + status;
+    badge.textContent = status === 'confirmed'  ? '✓ Confirmé'
+                      : status === 'incomplete' ? '⚠ Incomplet'
+                      :                           '— ?';
+}
+
+function _cycleStatus(li) {
+    const current = li.dataset.status;
+    const next    = STATUS_CYCLE[(STATUS_CYCLE.indexOf(current) + 1) % STATUS_CYCLE.length];
+
+    li.dataset.status = next;
+    _applyStatusToBadge(li.querySelector('.status-badge'), next);
+
+    const saved     = storageLoad() || {};
+    const overrides = saved.statusOverrides || {};
+    overrides[li.dataset.itemKey] = next;
+    storageSave({ ...saved, statusOverrides: overrides });
+
+    _applyFilterToDOM();
 }
 
 // ── Drag-and-drop sortable (pointer events — desktop + iPad) ──────────────────
