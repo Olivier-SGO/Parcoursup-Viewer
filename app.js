@@ -99,15 +99,13 @@ function copyShareLink() {
     }).catch(() => { prompt('Copiez ce lien :', url); });
 }
 
-// ── Synchronisation cloud (JSONBlob) ──────────────────────────────────────────
+// ── Synchronisation cloud ─────────────────────────────────────────────────────
 //
-// JSONBlob.com : JSON hosting anonyme, gratuit, sans compte.
-//   POST   /api/jsonBlob           → crée, renvoie Location: .../BLOB_ID
-//   GET    /api/jsonBlob/BLOB_ID   → lit
-//   PUT    /api/jsonBlob/BLOB_ID   → met à jour (sans authentification)
+// Deux backends au choix :
+//   GitHub Gist (recommandé) : CORS fiable, token requis une seule fois
+//   JSONBlob.com             : anonyme, sans compte, CORS variable selon navigateur
 //
-// URL de partage : https://…/app#blob:BLOB_ID
-// Le blob est automatiquement mis à jour après chaque modification (debounce 2s).
+// Fragment URL de partage : #gist:GIST_ID  ou  #blob:BLOB_ID
 
 const BLOB_API = 'https://jsonblob.com/api/jsonBlob';
 let   _syncTimer = null;
@@ -122,6 +120,42 @@ function _buildSyncPayload() {
         itemOrders:      s.itemOrders      || {},
     };
 }
+
+// ── GitHub Gist API ────────────────────────────────────────────────────────────
+
+async function _gistCreate(token, data) {
+    const res = await fetch('https://api.github.com/gists', {
+        method:  'POST',
+        headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            description: 'Parcoursup Viewer – classement',
+            public: false,
+            files: { 'parcoursup.json': { content: JSON.stringify(data) } },
+        }),
+    });
+    if (!res.ok) throw new Error('Gist non créé (' + res.status + ')');
+    return (await res.json()).id;
+}
+
+async function _gistRead(gistId) {
+    const res = await fetch('https://api.github.com/gists/' + gistId);
+    if (!res.ok) throw new Error('Gist introuvable (' + res.status + ')');
+    const json = await res.json();
+    const content = json.files?.['parcoursup.json']?.content;
+    if (!content) throw new Error('parcoursup.json absent du gist');
+    return JSON.parse(content);
+}
+
+async function _gistUpdate(token, gistId, data) {
+    const res = await fetch('https://api.github.com/gists/' + gistId, {
+        method:  'PATCH',
+        headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ files: { 'parcoursup.json': { content: JSON.stringify(data) } } }),
+    });
+    if (!res.ok) throw new Error('Gist non mis à jour (' + res.status + ')');
+}
+
+// ── JSONBlob API ───────────────────────────────────────────────────────────────
 
 async function _blobCreate(payload) {
     const resp = await fetch(BLOB_API, {
@@ -153,6 +187,8 @@ async function _blobUpdate(blobId, payload) {
     if (!resp.ok) throw new Error('Mise à jour échouée (' + resp.status + ')');
 }
 
+// ── Sync orchestration ─────────────────────────────────────────────────────────
+
 function _setSyncStatus(state) {
     const el = document.getElementById('syncStatusText');
     if (!el) return;
@@ -166,7 +202,7 @@ function _renderSyncBarInactive(container) {
     container.innerHTML =
         '<span class="sync-label">Partager :</span>' +
         '<button class="btn-share" onclick="copyShareLink()">🔗 Lien snapshot</button>' +
-        '<button class="btn-cloud-activate" onclick="activateBlobSync()">☁ Créer un lien en direct</button>' +
+        '<button class="btn-cloud-setup" onclick="openSyncSetup()">☁ Lien en direct</button>' +
         '<button class="btn-export-json" onclick="exportJSON()">↓ Exporter</button>';
 }
 
@@ -189,6 +225,8 @@ function _updateSyncUI() {
     } else {
         _renderSyncBarInactive(container);
     }
+    const setup = document.getElementById('syncSetup');
+    if (setup) setup.hidden = true;
 }
 
 function _scheduleSync() {
@@ -202,19 +240,47 @@ function _scheduleSync() {
 async function _pushSync() {
     const saved = storageLoad();
     if (!saved || !saved.sync || !saved.sync.id) return;
+    const { provider, id, token } = saved.sync;
     try {
-        await _blobUpdate(saved.sync.id, _buildSyncPayload());
+        const payload = _buildSyncPayload();
+        if (provider === 'gist') {
+            await _gistUpdate(token, id, payload);
+        } else {
+            await _blobUpdate(id, payload);
+        }
         _setSyncStatus('ok');
     } catch (_) {
         _setSyncStatus('error');
     }
 }
 
-async function activateBlobSync() {
-    const container = document.getElementById('syncBar');
-    if (container) {
-        container.innerHTML = '<span class="sync-status-text pending">⏳ Création du lien en direct…</span>';
+function openSyncSetup() {
+    const setup = document.getElementById('syncSetup');
+    if (!setup) return;
+    setup.hidden = !setup.hidden;
+}
+
+async function activateGistSync() {
+    const tokenInput = document.getElementById('githubTokenInput');
+    const token = tokenInput ? tokenInput.value.trim() : '';
+    if (!token) { alert('Entrez votre token GitHub (scope : gist).'); return; }
+    const btn = document.querySelector('.btn-sync-activate--gist');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Création…'; }
+    try {
+        const id = await _gistCreate(token, _buildSyncPayload());
+        const saved = storageLoad() || {};
+        storageSave({ ...saved, sync: { provider: 'gist', id, token } });
+        _updateSyncUI();
+        _setSyncStatus('ok');
+    } catch (e) {
+        if (btn) { btn.disabled = false; btn.textContent = 'Activer'; }
+        alert('Impossible de créer le Gist : ' + e.message);
     }
+}
+
+async function activateBlobSync() {
+    const btn = document.querySelector('.btn-sync-activate--blob');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Création…'; }
     try {
         const blobId = await _blobCreate(_buildSyncPayload());
         const saved  = storageLoad() || {};
@@ -222,7 +288,7 @@ async function activateBlobSync() {
         _updateSyncUI();
         _setSyncStatus('ok');
     } catch (e) {
-        _updateSyncUI(); // revient à l'état inactif
+        if (btn) { btn.disabled = false; btn.textContent = 'Activer'; }
         alert('Impossible de créer le lien cloud : ' + e.message);
     }
 }
@@ -230,9 +296,10 @@ async function activateBlobSync() {
 async function refreshFromCloud() {
     const saved = storageLoad();
     if (!saved || !saved.sync || !saved.sync.id) return;
+    const { provider, id } = saved.sync;
     _setSyncStatus('pending');
     try {
-        const data = await _blobRead(saved.sync.id);
+        const data = provider === 'gist' ? await _gistRead(id) : await _blobRead(id);
         storageSave({ ...saved, ...data });
         _restoreFromSnapshot(data.snapshot);
         _setSyncStatus('ok');
@@ -244,7 +311,9 @@ async function refreshFromCloud() {
 function copyCloudLink() {
     const saved = storageLoad();
     if (!saved || !saved.sync || !saved.sync.id) return;
-    const url = location.href.split('#')[0] + '#blob:' + saved.sync.id;
+    const { provider, id } = saved.sync;
+    const fragment = provider === 'gist' ? 'gist:' + id : 'blob:' + id;
+    const url = location.href.split('#')[0] + '#' + fragment;
     navigator.clipboard.writeText(url).then(() => {
         const btn = document.querySelector('.btn-cloud-link');
         if (!btn) return;
@@ -267,21 +336,24 @@ function disconnectSync() {
 window.addEventListener('DOMContentLoaded', async () => {
     const hash = location.hash.slice(1);
 
-    // 0a. Lien cloud en direct (#blob:ID) → charge la dernière version depuis JSONBlob
-    if (hash.startsWith('blob:')) {
-        const blobId = hash.slice(5);
+    // 0a. Lien cloud en direct (#gist:ID ou #blob:ID) → charge la dernière version
+    if (hash.startsWith('gist:') || hash.startsWith('blob:')) {
+        const isGist   = hash.startsWith('gist:');
+        const cloudId  = hash.slice(hash.indexOf(':') + 1);
+        const provider = isGist ? 'gist' : 'blob';
         try {
-            const data = await _blobRead(blobId);
+            const data = isGist ? await _gistRead(cloudId) : await _blobRead(cloudId);
             const existing = storageLoad() || {};
-            storageSave({ ...existing, ...data, sync: { provider: 'blob', id: blobId } });
+            const token = (existing.sync && existing.sync.token) || null;
+            storageSave({ ...existing, ...data, sync: { provider, id: cloudId, token } });
             history.replaceState(null, '', location.pathname + location.search);
             _restoreFromSnapshot(data.snapshot);
             return;
-        } catch (_) {} // blob introuvable → continuer avec localStorage
+        } catch (_) {} // introuvable → continuer avec localStorage
     }
 
     // 0b. Lien snapshot base64 (lecture seule, figé au moment du partage)
-    if (hash && !hash.startsWith('blob:')) {
+    if (hash && !hash.startsWith('gist:') && !hash.startsWith('blob:')) {
         try {
             const data = _decodeState(hash);
             if (data.snapshot && data.snapshot.length > 0) {
