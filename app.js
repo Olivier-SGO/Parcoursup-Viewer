@@ -99,12 +99,189 @@ function copyShareLink() {
     }).catch(() => { prompt('Copiez ce lien :', url); });
 }
 
+// ── Synchronisation cloud (JSONBlob) ──────────────────────────────────────────
+//
+// JSONBlob.com : JSON hosting anonyme, gratuit, sans compte.
+//   POST   /api/jsonBlob           → crée, renvoie Location: .../BLOB_ID
+//   GET    /api/jsonBlob/BLOB_ID   → lit
+//   PUT    /api/jsonBlob/BLOB_ID   → met à jour (sans authentification)
+//
+// URL de partage : https://…/app#blob:BLOB_ID
+// Le blob est automatiquement mis à jour après chaque modification (debounce 2s).
+
+const BLOB_API = 'https://jsonblob.com/api/jsonBlob';
+let   _syncTimer = null;
+
+function _buildSyncPayload() {
+    const s = storageLoad() || {};
+    return {
+        snapshot:        s.snapshot        || [],
+        headlessGroups:  s.headlessGroups  || [],
+        statusOverrides: s.statusOverrides || {},
+        groupOrder:      s.groupOrder      || [],
+        itemOrders:      s.itemOrders      || {},
+    };
+}
+
+async function _blobCreate(payload) {
+    const resp = await fetch(BLOB_API, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body:    JSON.stringify(payload),
+    });
+    if (!resp.ok) throw new Error('Création échouée (' + resp.status + ')');
+    const loc = resp.headers.get('Location') || '';
+    const id  = loc.split('/').pop();
+    if (!id) throw new Error('ID de blob introuvable dans la réponse');
+    return id;
+}
+
+async function _blobRead(blobId) {
+    const resp = await fetch(`${BLOB_API}/${blobId}`, {
+        headers: { 'Accept': 'application/json' },
+    });
+    if (!resp.ok) throw new Error('Blob introuvable (' + resp.status + ')');
+    return resp.json();
+}
+
+async function _blobUpdate(blobId, payload) {
+    const resp = await fetch(`${BLOB_API}/${blobId}`, {
+        method:  'PUT',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body:    JSON.stringify(payload),
+    });
+    if (!resp.ok) throw new Error('Mise à jour échouée (' + resp.status + ')');
+}
+
+function _setSyncStatus(state) {
+    const el = document.getElementById('syncStatusText');
+    if (!el) return;
+    el.className   = 'sync-status-text ' + state;
+    el.textContent = state === 'pending' ? '⏳ Synchronisation…'
+                   : state === 'error'   ? '⚠ Erreur de sync'
+                   :                       '☁ Synchronisé';
+}
+
+function _renderSyncBarInactive(container) {
+    container.innerHTML =
+        '<span class="sync-label">Partager :</span>' +
+        '<button class="btn-share" onclick="copyShareLink()">🔗 Lien snapshot</button>' +
+        '<button class="btn-cloud-activate" onclick="activateBlobSync()">☁ Créer un lien en direct</button>' +
+        '<button class="btn-export-json" onclick="exportJSON()">↓ Exporter</button>';
+}
+
+function _renderSyncBarActive(container) {
+    container.innerHTML =
+        '<span id="syncStatusText" class="sync-status-text ok">☁ Synchronisé</span>' +
+        '<button class="btn-cloud-link" onclick="copyCloudLink()">🔗 Copier le lien</button>' +
+        '<button class="btn-sync-action" onclick="refreshFromCloud()" title="Récupérer la version cloud">↻ Rafraîchir</button>' +
+        '<button class="btn-sync-action btn-sync-disconnect" onclick="disconnectSync()" title="Désactiver la synchronisation">✕ Déconnecter</button>' +
+        '<button class="btn-export-json" onclick="exportJSON()">↓ Exporter</button>';
+}
+
+function _updateSyncUI() {
+    const container = document.getElementById('syncBar');
+    if (!container) return;
+    const saved = storageLoad();
+    const sync  = saved && saved.sync;
+    if (sync && sync.id) {
+        _renderSyncBarActive(container);
+    } else {
+        _renderSyncBarInactive(container);
+    }
+}
+
+function _scheduleSync() {
+    const saved = storageLoad();
+    if (!saved || !saved.sync || !saved.sync.id) return;
+    clearTimeout(_syncTimer);
+    _setSyncStatus('pending');
+    _syncTimer = setTimeout(_pushSync, 2000);
+}
+
+async function _pushSync() {
+    const saved = storageLoad();
+    if (!saved || !saved.sync || !saved.sync.id) return;
+    try {
+        await _blobUpdate(saved.sync.id, _buildSyncPayload());
+        _setSyncStatus('ok');
+    } catch (_) {
+        _setSyncStatus('error');
+    }
+}
+
+async function activateBlobSync() {
+    const container = document.getElementById('syncBar');
+    if (container) {
+        container.innerHTML = '<span class="sync-status-text pending">⏳ Création du lien en direct…</span>';
+    }
+    try {
+        const blobId = await _blobCreate(_buildSyncPayload());
+        const saved  = storageLoad() || {};
+        storageSave({ ...saved, sync: { provider: 'blob', id: blobId } });
+        _updateSyncUI();
+        _setSyncStatus('ok');
+    } catch (e) {
+        _updateSyncUI(); // revient à l'état inactif
+        alert('Impossible de créer le lien cloud : ' + e.message);
+    }
+}
+
+async function refreshFromCloud() {
+    const saved = storageLoad();
+    if (!saved || !saved.sync || !saved.sync.id) return;
+    _setSyncStatus('pending');
+    try {
+        const data = await _blobRead(saved.sync.id);
+        storageSave({ ...saved, ...data });
+        _restoreFromSnapshot(data.snapshot);
+        _setSyncStatus('ok');
+    } catch (_) {
+        _setSyncStatus('error');
+    }
+}
+
+function copyCloudLink() {
+    const saved = storageLoad();
+    if (!saved || !saved.sync || !saved.sync.id) return;
+    const url = location.href.split('#')[0] + '#blob:' + saved.sync.id;
+    navigator.clipboard.writeText(url).then(() => {
+        const btn = document.querySelector('.btn-cloud-link');
+        if (!btn) return;
+        const orig = btn.textContent;
+        btn.textContent = '✓ Copié !';
+        setTimeout(() => { btn.textContent = orig; }, 2500);
+    }).catch(() => { prompt('Lien en direct :', url); });
+}
+
+function disconnectSync() {
+    const saved = storageLoad();
+    if (!saved) return;
+    delete saved.sync;
+    storageSave(saved);
+    _updateSyncUI();
+}
+
 // ── Startup ───────────────────────────────────────────────────────────────────
 
-window.addEventListener('DOMContentLoaded', () => {
-    // 0. Restauration depuis un lien de partage (fragment URL #base64)
+window.addEventListener('DOMContentLoaded', async () => {
     const hash = location.hash.slice(1);
-    if (hash) {
+
+    // 0a. Lien cloud en direct (#blob:ID) → charge la dernière version depuis JSONBlob
+    if (hash.startsWith('blob:')) {
+        const blobId = hash.slice(5);
+        try {
+            const data = await _blobRead(blobId);
+            const existing = storageLoad() || {};
+            storageSave({ ...existing, ...data, sync: { provider: 'blob', id: blobId } });
+            history.replaceState(null, '', location.pathname + location.search);
+            _restoreFromSnapshot(data.snapshot);
+            return;
+        } catch (_) {} // blob introuvable → continuer avec localStorage
+    }
+
+    // 0b. Lien snapshot base64 (lecture seule, figé au moment du partage)
+    if (hash && !hash.startsWith('blob:')) {
         try {
             const data = _decodeState(hash);
             if (data.snapshot && data.snapshot.length > 0) {
@@ -373,6 +550,7 @@ function _saveCurrentOrder() {
 
     const saved = storageLoad() || {};
     storageSave({ ...saved, groupOrder, itemOrders, headlessGroups, snapshot });
+    _scheduleSync();
 }
 
 // ── Rendering ──────────────────────────────────────────────────────────────────
@@ -382,6 +560,7 @@ function _showResults() {
     document.getElementById('inputSection').hidden   = true;
     document.getElementById('resultsSection').hidden = false;
     _saveCurrentOrder(); // Snapshot initial pour restauration sans re-parsing
+    _updateSyncUI();
 }
 
 function _renderResults() {
