@@ -40,9 +40,82 @@ function storageLoad() {
     try { return JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch (_) { return null; }
 }
 
+// ── Export / Import / Partage par lien ────────────────────────────────────────
+
+function _encodeState(data) {
+    // JSON → UTF-8 percent-encoded → latin1 → base64 (supporte les accents)
+    return btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+}
+
+function _decodeState(b64) {
+    return JSON.parse(decodeURIComponent(escape(atob(b64))));
+}
+
+function exportJSON() {
+    const saved = storageLoad();
+    if (!saved || !saved.snapshot) { alert('Aucune session à exporter.'); return; }
+    const blob = new Blob([JSON.stringify(saved, null, 2)], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = 'parcoursup-classement.json';
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+function importJSON(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    event.target.value = '';
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const data = JSON.parse(e.target.result);
+            if (!data.snapshot && !data.text) throw new Error();
+            storageSave(data);
+            resumeSession();
+        } catch (_) { alert('Fichier invalide ou corrompu.'); }
+    };
+    reader.readAsText(file);
+}
+
+function copyShareLink() {
+    const saved = storageLoad();
+    if (!saved || !saved.snapshot || !saved.snapshot.length) {
+        alert('Aucune session à partager.'); return;
+    }
+    const b64 = _encodeState({
+        snapshot:        saved.snapshot,
+        headlessGroups:  saved.headlessGroups  || [],
+        statusOverrides: saved.statusOverrides || {},
+    });
+    const url = location.href.split('#')[0] + '#' + b64;
+    navigator.clipboard.writeText(url).then(() => {
+        const btn = document.querySelector('.btn-share');
+        if (!btn) return;
+        const orig = btn.textContent;
+        btn.textContent = '✓ Lien copié !';
+        setTimeout(() => { btn.textContent = orig; }, 2500);
+    }).catch(() => { prompt('Copiez ce lien :', url); });
+}
+
 // ── Startup ───────────────────────────────────────────────────────────────────
 
 window.addEventListener('DOMContentLoaded', () => {
+    // 0. Restauration depuis un lien de partage (fragment URL #base64)
+    const hash = location.hash.slice(1);
+    if (hash) {
+        try {
+            const data = _decodeState(hash);
+            if (data.snapshot && data.snapshot.length > 0) {
+                storageSave(data);
+                history.replaceState(null, '', location.pathname + location.search);
+                _restoreFromSnapshot(data.snapshot);
+                return;
+            }
+        } catch (_) {}
+    }
+
     const saved = storageLoad();
 
     // 1. Restauration depuis le texte original (chemin normal)
