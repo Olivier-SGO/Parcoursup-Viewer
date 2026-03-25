@@ -35,11 +35,12 @@
             </div>
 
             <div class="filter-bar">
-                <span class="filter-label">Afficher :</span>
+                <span class="filter-label">Statut :</span>
                 <button class="filter-btn active" data-filter="all"        onclick="applyFilter('all')">Tous</button>
                 <button class="filter-btn"         data-filter="confirmed"  onclick="applyFilter('confirmed')">✓ Confirmés</button>
                 <button class="filter-btn"         data-filter="incomplete" onclick="applyFilter('incomplete')">⚠ Incomplets</button>
             </div>
+            <div class="filter-bar" id="typeFilterBar" hidden></div>
 
             <div id="resultsContainer"></div>
         </section>
