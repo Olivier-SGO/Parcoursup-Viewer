@@ -311,8 +311,15 @@ async function refreshFromCloud() {
 function copyCloudLink() {
     const saved = storageLoad();
     if (!saved || !saved.sync || !saved.sync.id) return;
-    const { provider, id } = saved.sync;
-    const fragment = provider === 'gist' ? 'gist:' + id : 'blob:' + id;
+    const { provider, id, token } = saved.sync;
+    let fragment;
+    if (provider === 'gist' && token) {
+        fragment = 'gist:' + id + ':' + token; // token inclus → lecture + écriture sur tout appareil
+    } else if (provider === 'gist') {
+        fragment = 'gist:' + id;
+    } else {
+        fragment = 'blob:' + id;
+    }
     const url = location.href.split('#')[0] + '#' + fragment;
     navigator.clipboard.writeText(url).then(() => {
         const btn = document.querySelector('.btn-cloud-link');
@@ -336,15 +343,18 @@ function disconnectSync() {
 window.addEventListener('DOMContentLoaded', async () => {
     const hash = location.hash.slice(1);
 
-    // 0a. Lien cloud en direct (#gist:ID ou #blob:ID) → charge la dernière version
+    // 0a. Lien cloud en direct (#gist:ID[:TOKEN] ou #blob:ID) → charge la dernière version
     if (hash.startsWith('gist:') || hash.startsWith('blob:')) {
         const isGist   = hash.startsWith('gist:');
-        const cloudId  = hash.slice(hash.indexOf(':') + 1);
+        const rest     = hash.slice(hash.indexOf(':') + 1); // "ID" ou "ID:TOKEN"
+        const sepIdx   = rest.indexOf(':');
+        const cloudId  = sepIdx >= 0 ? rest.slice(0, sepIdx) : rest;
+        const urlToken = sepIdx >= 0 ? rest.slice(sepIdx + 1) : null;
         const provider = isGist ? 'gist' : 'blob';
         try {
             const data = isGist ? await _gistRead(cloudId) : await _blobRead(cloudId);
             const existing = storageLoad() || {};
-            const token = (existing.sync && existing.sync.token) || null;
+            const token = urlToken || (existing.sync && existing.sync.token) || null;
             storageSave({ ...existing, ...data, sync: { provider, id: cloudId, token } });
             history.replaceState(null, '', location.pathname + location.search);
             _restoreFromSnapshot(data.snapshot);
