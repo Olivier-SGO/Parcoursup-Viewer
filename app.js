@@ -214,8 +214,10 @@ function _renderSyncBarInactive(container) {
         '<span class="sync-label">Partager :</span>' +
         '<button class="btn-share" onclick="copyShareLink()">🔗 Lien snapshot</button>' +
         '<button class="btn-cloud-setup" onclick="openSyncSetup()">☁ Lien en direct</button>' +
+        '<label class="btn-export-json btn-import-results" title="Importer une sauvegarde JSON">↑ Importer<input type="file" accept=".json" hidden onchange="importJSON(event)"></label>' +
         '<button class="btn-export-json" onclick="exportJSON()">↓ Exporter</button>';
 }
+
 
 function _renderSyncBarActive(container, paused) {
     container.innerHTML = paused
@@ -228,6 +230,7 @@ function _renderSyncBarActive(container, paused) {
           '<button class="btn-sync-action" onclick="refreshFromCloud()" title="Récupérer la version cloud">↻ Rafraîchir</button>' +
           '<button class="btn-sync-action btn-sync-pause" onclick="pauseSync()" title="Travailler en local sans synchroniser">⏸ Mode local</button>' +
           '<button class="btn-sync-action btn-sync-disconnect" onclick="disconnectSync()" title="Désactiver définitivement">✕ Déconnecter</button>' +
+          '<label class="btn-export-json btn-import-results" title="Importer une sauvegarde JSON">↑ Importer<input type="file" accept=".json" hidden onchange="importJSON(event)"></label>' +
           '<button class="btn-export-json" onclick="exportJSON()">↓ Exporter</button>';
 }
 

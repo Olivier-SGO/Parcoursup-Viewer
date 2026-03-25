@@ -192,6 +192,12 @@ header h1 {
     box-shadow: none;
 }
 
+.btn-import-results {
+    display: inline-flex;
+    align-items: center;
+    user-select: none;
+}
+
 .btn-export-json:hover {
     background: #f0f4ff;
     color: var(--color-primary);
