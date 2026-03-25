@@ -247,6 +247,7 @@ header h1 {
 .sync-status-text.ok      { color: var(--color-confirmed); }
 .sync-status-text.pending { color: var(--color-text-muted); }
 .sync-status-text.error   { color: var(--color-incomplete); }
+.sync-status-text.paused  { color: #7c3aed; }
 
 .btn-sync-action {
     margin-top: 0;

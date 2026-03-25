@@ -217,23 +217,29 @@ function _renderSyncBarInactive(container) {
         '<button class="btn-export-json" onclick="exportJSON()">↓ Exporter</button>';
 }
 
-function _renderSyncBarActive(container) {
-    container.innerHTML =
-        '<span id="syncStatusText" class="sync-status-text ok">☁ Synchronisé</span>' +
-        '<button class="btn-cloud-link" onclick="copyCloudLink()">🔗 Copier le lien</button>' +
-        '<button class="btn-sync-action" onclick="refreshFromCloud()" title="Récupérer la version cloud">↻ Rafraîchir</button>' +
-        '<button class="btn-sync-action btn-sync-disconnect" onclick="disconnectSync()" title="Désactiver la synchronisation">✕ Déconnecter</button>' +
-        '<button class="btn-export-json" onclick="exportJSON()">↓ Exporter</button>';
+function _renderSyncBarActive(container, paused) {
+    container.innerHTML = paused
+        ? '<span class="sync-status-text paused">✎ Mode local</span>' +
+          '<button class="btn-sync-action btn-sync-resume" onclick="resumeSync()" title="Reprendre la synchronisation cloud">☁ Rejoindre</button>' +
+          '<button class="btn-sync-action btn-sync-disconnect" onclick="disconnectSync()" title="Désactiver définitivement">✕ Déconnecter</button>' +
+          '<button class="btn-export-json" onclick="exportJSON()">↓ Exporter</button>'
+        : '<span id="syncStatusText" class="sync-status-text ok">☁ Synchronisé</span>' +
+          '<button class="btn-cloud-link" onclick="copyCloudLink()">🔗 Copier le lien</button>' +
+          '<button class="btn-sync-action" onclick="refreshFromCloud()" title="Récupérer la version cloud">↻ Rafraîchir</button>' +
+          '<button class="btn-sync-action btn-sync-pause" onclick="pauseSync()" title="Travailler en local sans synchroniser">⏸ Mode local</button>' +
+          '<button class="btn-sync-action btn-sync-disconnect" onclick="disconnectSync()" title="Désactiver définitivement">✕ Déconnecter</button>' +
+          '<button class="btn-export-json" onclick="exportJSON()">↓ Exporter</button>';
 }
 
 function _updateSyncUI() {
     const container = document.getElementById('syncBar');
     if (!container) return;
-    const saved = storageLoad();
-    const sync  = saved && saved.sync;
+    const saved  = storageLoad();
+    const sync   = saved && saved.sync;
+    const paused = sync && sync.paused;
     if (sync && sync.id) {
-        _renderSyncBarActive(container);
-        _startPolling();
+        _renderSyncBarActive(container, paused);
+        paused ? _stopPolling() : _startPolling();
     } else {
         _renderSyncBarInactive(container);
         _stopPolling();
@@ -245,7 +251,7 @@ function _updateSyncUI() {
 function _scheduleSync() {
     if (_skipNextSync) { _skipNextSync = false; return; }
     const saved = storageLoad();
-    if (!saved || !saved.sync || !saved.sync.id) return;
+    if (!saved || !saved.sync || !saved.sync.id || saved.sync.paused) return;
     clearTimeout(_syncTimer);
     _setSyncStatus('pending');
     _syncTimer = setTimeout(_pushSync, 2000);
@@ -348,6 +354,31 @@ function copyCloudLink() {
         btn.textContent = '✓ Copié !';
         setTimeout(() => { btn.textContent = orig; }, 2500);
     }).catch(() => { prompt('Lien en direct :', url); });
+}
+
+function pauseSync() {
+    const saved = storageLoad();
+    if (!saved || !saved.sync) return;
+    storageSave({ ...saved, sync: { ...saved.sync, paused: true } });
+    _stopPolling();
+    clearTimeout(_syncTimer);
+    _updateSyncUI();
+}
+
+async function resumeSync() {
+    const saved = storageLoad();
+    if (!saved || !saved.sync) return;
+    storageSave({ ...saved, sync: { ...saved.sync, paused: false } });
+    // Tirer le cloud pour récupérer les modifications faites pendant la pause
+    try {
+        const { provider, id } = saved.sync;
+        const data = provider === 'gist' ? await _gistRead(id) : await _blobRead(id);
+        const s = storageLoad() || {};
+        storageSave({ ...s, ...data, sync: { ...s.sync, paused: false, lastPushed: data.lastModified || 0 } });
+        _skipNextSync = true;
+        _restoreFromSnapshot(data.snapshot);
+    } catch (_) {}
+    _updateSyncUI();
 }
 
 function disconnectSync() {
@@ -457,8 +488,8 @@ window.addEventListener('DOMContentLoaded', async () => {
 
     const saved = storageLoad();
 
-    // 0c. Sync active → toujours tirer le cloud au démarrage (évite d'écraser l'état d'un autre appareil)
-    if (saved && saved.sync && saved.sync.id) {
+    // 0c. Sync active et non pausée → toujours tirer le cloud au démarrage
+    if (saved && saved.sync && saved.sync.id && !saved.sync.paused) {
         try {
             const { provider, id } = saved.sync;
             const data = provider === 'gist' ? await _gistRead(id) : await _blobRead(id);
