@@ -640,7 +640,7 @@ button:not(.btn-secondary):not(.btn-export):not(.btn-danger):not(.filter-btn):ho
     display: flex;
     align-items: flex-start;
     gap: 0.6rem;
-    padding: 0.75rem 1rem 0.75rem calc(1rem + 10px);
+    padding: 0.75rem 1rem 0.75rem calc(1rem + 5%);
     border-radius: var(--radius-item);
     background: white;
     box-shadow: var(--shadow-item);
@@ -654,7 +654,7 @@ button:not(.btn-secondary):not(.btn-export):not(.btn-danger):not(.filter-btn):ho
     left: 0;
     top: 0;
     bottom: 0;
-    width: 10px;
+    width: 5%;
     background: #e2e8f0;
     cursor: pointer;
     transition: background 0.2s, filter 0.15s;
@@ -665,9 +665,9 @@ button:not(.btn-secondary):not(.btn-export):not(.btn-danger):not(.filter-btn):ho
     filter: brightness(0.88);
 }
 
-.item[data-chance="sure"]     .item-chance-bar { background: #16a34a; }
-.item[data-chance="probable"] .item-chance-bar { background: #d97706; }
-.item[data-chance="unlikely"] .item-chance-bar { background: #ea580c; }
+.item[data-chance="sure"]     .item-chance-bar { background: #16a34a; } /* vert  */
+.item[data-chance="probable"] .item-chance-bar { background: #eab308; } /* jaune */
+.item[data-chance="unlikely"] .item-chance-bar { background: #f97316; } /* orange */
 
 .item:hover {
     box-shadow: 0 4px 16px rgba(37, 99, 235, 0.11), 0 1px 3px rgba(0,0,0,0.05);
