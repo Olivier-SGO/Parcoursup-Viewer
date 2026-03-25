@@ -116,6 +116,7 @@ function _buildSyncPayload() {
         snapshot:        s.snapshot        || [],
         headlessGroups:  s.headlessGroups  || [],
         statusOverrides: s.statusOverrides || {},
+        notes:           s.notes           || {},
         groupOrder:      s.groupOrder      || [],
         itemOrders:      s.itemOrders      || {},
     };
@@ -425,7 +426,7 @@ function resumeSession() {
 function _restoreFromSnapshot(snapshot) {
     allGroups = snapshot.map(g => ({
         name:  g.groupName,
-        items: g.items.map(i => ({ name: i.name, detail: i.detail, status: i.status })),
+        items: g.items.map(i => ({ name: i.name, detail: i.detail, status: i.status, note: i.note || '' })),
     }));
     _showResults();
 }
@@ -523,12 +524,12 @@ function exportRanking() {
         let rank = 1;
         for (const item of section.querySelectorAll('.item:not([hidden])')) {
             const name   = item.querySelector('.item-name').textContent;
-            const detail = item.querySelector('.item-detail')  ? item.querySelector('.item-detail').textContent  : '';
             const type   = item.dataset.type ? ` [${item.dataset.type}]` : '';
             const status = item.dataset.status === 'confirmed'  ? '✓'
                          : item.dataset.status === 'incomplete' ? '⚠' : '?';
+            const note   = item.querySelector('.item-note')?.textContent.trim();
             lines.push(`  ${rank}. ${name}${type} ${status}`);
-            if (detail) lines.push(`     ${detail}`);
+            if (note) lines.push(`     → ${note}`);
             rank++;
         }
         lines.push('');
@@ -625,8 +626,9 @@ function _saveCurrentOrder() {
         headless:  sec.classList.contains('group-section--headless'),
         items: [...sec.querySelectorAll('.item')].map(li => ({
             name:   li.querySelector('.item-name').textContent,
-            detail: li.querySelector('.item-detail')?.textContent || '',
+            detail: li.dataset.detail || '',
             status: li.dataset.status,
+            note:   li.querySelector('.item-note')?.textContent.trim() || '',
         })),
     }));
 
@@ -651,10 +653,11 @@ function _renderResults() {
 
     const saved          = storageLoad();
     const overrides      = (saved && saved.statusOverrides) ? saved.statusOverrides : {};
+    const notes          = (saved && saved.notes)           ? saved.notes           : {};
     const headlessGroups = (saved && saved.headlessGroups)  ? saved.headlessGroups  : [];
 
     for (const group of allGroups) {
-        const sec = _buildGroupSection(group, overrides);
+        const sec = _buildGroupSection(group, overrides, notes);
         if (headlessGroups.includes(group.name)) {
             sec.querySelector('.group-header').hidden = true;
             sec.classList.add('group-section--headless');
@@ -672,7 +675,7 @@ function _renderResults() {
     _applyFilterToDOM();
 }
 
-function _buildGroupSection(group, overrides) {
+function _buildGroupSection(group, overrides, notes = {}) {
     const section = document.createElement('div');
     section.className       = 'group-section';
     section.dataset.groupName = group.name;
@@ -695,16 +698,17 @@ function _buildGroupSection(group, overrides) {
 
     const list = document.createElement('ul');
     list.className = 'items-list';
-    group.items.forEach((item, i) => list.appendChild(_buildItem(item, i + 1, overrides)));
+    group.items.forEach((item, i) => list.appendChild(_buildItem(item, i + 1, overrides, notes)));
     section.appendChild(list);
 
     return section;
 }
 
-function _buildItem(item, rank, overrides) {
+function _buildItem(item, rank, overrides, notes = {}) {
     const li = document.createElement('li');
     li.className       = 'item';
     li.dataset.itemKey = itemKey(item);
+    li.dataset.detail  = item.detail || ''; // conservé pour le snapshot, non affiché
 
     const status = (overrides && overrides[itemKey(item)]) || item.status || 'unknown';
     li.dataset.status = status;
@@ -746,15 +750,34 @@ function _buildItem(item, rank, overrides) {
 
     content.appendChild(nameRow);
 
-    if (item.detail) {
-        const detailEl = document.createElement('div');
-        detailEl.className   = 'item-detail';
-        detailEl.textContent = item.detail;
-        content.appendChild(detailEl);
-    }
+    const note = item.note || notes[itemKey(item)] || '';
+    const noteEl = document.createElement('div');
+    noteEl.className         = 'item-note';
+    noteEl.contentEditable   = 'true';
+    noteEl.dataset.placeholder = 'Ajouter une note…';
+    if (note) noteEl.textContent = note;
+    noteEl.addEventListener('blur', () => _saveNote(li, noteEl.textContent.trim()));
+    noteEl.addEventListener('keydown', e => {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); noteEl.blur(); }
+        e.stopPropagation(); // empêche l'interférence avec le drag
+    });
+    noteEl.addEventListener('pointerdown', e => e.stopPropagation()); // empêche le drag
+    content.appendChild(noteEl);
 
     li.appendChild(content);
     return li;
+}
+
+function _saveNote(li, text) {
+    const saved = storageLoad() || {};
+    const notes = saved.notes || {};
+    if (text) {
+        notes[li.dataset.itemKey] = text;
+    } else {
+        delete notes[li.dataset.itemKey];
+    }
+    storageSave({ ...saved, notes });
+    _saveCurrentOrder(); // met à jour le snapshot avec la note
 }
 
 function createGrip(extraClass) {
