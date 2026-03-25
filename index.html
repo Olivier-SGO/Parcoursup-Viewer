@@ -46,6 +46,29 @@
             <div class="sync-bar" id="syncBar">
                 <!-- Peuplé dynamiquement par _updateSyncUI() -->
             </div>
+            <div class="sync-setup" id="syncSetup" hidden>
+                <div class="sync-setup__option">
+                    <div class="sync-setup__header">
+                        <strong>GitHub Gist</strong>
+                        <span class="sync-setup__tag sync-setup__tag--green">Recommandé</span>
+                        <span class="sync-setup__desc">Fiable, privé — un token GitHub requis une seule fois</span>
+                    </div>
+                    <div class="sync-setup__row">
+                        <input type="password" id="githubTokenInput" placeholder="ghp_xxxx…" autocomplete="off">
+                        <button class="btn-sync-activate btn-sync-activate--gist" onclick="activateGistSync()">Activer</button>
+                    </div>
+                    <p class="sync-setup__hint">Créer un token sur <a href="https://github.com/settings/tokens/new?scopes=gist" target="_blank" rel="noopener">github.com/settings/tokens</a> (scope&nbsp;: <code>gist</code>)</p>
+                </div>
+                <div class="sync-setup__divider"></div>
+                <div class="sync-setup__option">
+                    <div class="sync-setup__header">
+                        <strong>JSONBlob</strong>
+                        <span class="sync-setup__tag">Sans compte</span>
+                        <span class="sync-setup__desc">Anonyme — peut échouer selon le réseau / navigateur</span>
+                    </div>
+                    <button class="btn-sync-activate btn-sync-activate--blob" onclick="activateBlobSync()">Activer</button>
+                </div>
+            </div>
 
             <div class="filter-bar">
                 <span class="filter-label">Statut :</span>
