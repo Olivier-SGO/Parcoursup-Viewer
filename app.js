@@ -8,6 +8,10 @@ let activeTypeFilter = null;
 let mergeMode        = false;
 const STORAGE_KEY = 'parcoursup_v1';
 
+// ── Probabilité d'admission ────────────────────────────────────────────────────
+
+const CHANCE_CYCLE = ['', 'sure', 'probable', 'unlikely'];
+
 // ── Formation type ────────────────────────────────────────────────────────────
 
 const TYPE_SLUGS = {
@@ -115,8 +119,9 @@ function _buildSyncPayload() {
     return {
         snapshot:        s.snapshot        || [],
         headlessGroups:  s.headlessGroups  || [],
-        statusOverrides: s.statusOverrides || {},
-        notes:           s.notes           || {},
+        statusOverrides: s.statusOverrides  || {},
+        chanceOverrides: s.chanceOverrides  || {},
+        notes:           s.notes            || {},
         groupOrder:      s.groupOrder      || [],
         itemOrders:      s.itemOrders      || {},
     };
@@ -426,7 +431,7 @@ function resumeSession() {
 function _restoreFromSnapshot(snapshot) {
     allGroups = snapshot.map(g => ({
         name:  g.groupName,
-        items: g.items.map(i => ({ name: i.name, detail: i.detail, status: i.status, note: i.note || '' })),
+        items: g.items.map(i => ({ name: i.name, detail: i.detail, status: i.status, note: i.note || '', chance: i.chance || '' })),
     }));
     _showResults();
 }
@@ -528,8 +533,11 @@ function exportRanking() {
             const type   = item.dataset.type ? ` [${item.dataset.type}]` : '';
             const status = item.dataset.status === 'confirmed'  ? '✓'
                          : item.dataset.status === 'incomplete' ? '⚠' : '?';
+            const chance = item.dataset.chance === 'sure'     ? ' 🟢'
+                         : item.dataset.chance === 'probable' ? ' 🟡'
+                         : item.dataset.chance === 'unlikely' ? ' 🔴' : '';
             const note   = item.querySelector('.item-note')?.textContent.trim();
-            lines.push(`  ${rank}. ${name}${type} ${status}`);
+            lines.push(`  ${rank}. ${name}${type} ${status}${chance}`);
             if (note) lines.push(`     → ${note}`);
             rank++;
         }
@@ -629,6 +637,7 @@ function _saveCurrentOrder() {
             name:   li.querySelector('.item-name').textContent,
             detail: li.dataset.detail || '',
             status: li.dataset.status,
+            chance: li.dataset.chance || '',
             note:   li.querySelector('.item-note')?.textContent.trim() || '',
         })),
     }));
@@ -653,12 +662,13 @@ function _renderResults() {
     container.innerHTML  = '';
 
     const saved          = storageLoad();
-    const overrides      = (saved && saved.statusOverrides) ? saved.statusOverrides : {};
-    const notes          = (saved && saved.notes)           ? saved.notes           : {};
-    const headlessGroups = (saved && saved.headlessGroups)  ? saved.headlessGroups  : [];
+    const overrides      = (saved && saved.statusOverrides)  ? saved.statusOverrides  : {};
+    const chances        = (saved && saved.chanceOverrides)  ? saved.chanceOverrides  : {};
+    const notes          = (saved && saved.notes)            ? saved.notes            : {};
+    const headlessGroups = (saved && saved.headlessGroups)   ? saved.headlessGroups   : [];
 
     for (const group of allGroups) {
-        const sec = _buildGroupSection(group, overrides, notes);
+        const sec = _buildGroupSection(group, overrides, notes, chances);
         if (headlessGroups.includes(group.name)) {
             sec.querySelector('.group-header').hidden = true;
             sec.classList.add('group-section--headless');
@@ -676,7 +686,7 @@ function _renderResults() {
     _applyFilterToDOM();
 }
 
-function _buildGroupSection(group, overrides, notes = {}) {
+function _buildGroupSection(group, overrides, notes = {}, chances = {}) {
     const section = document.createElement('div');
     section.className       = 'group-section';
     section.dataset.groupName = group.name;
@@ -699,13 +709,13 @@ function _buildGroupSection(group, overrides, notes = {}) {
 
     const list = document.createElement('ul');
     list.className = 'items-list';
-    group.items.forEach((item, i) => list.appendChild(_buildItem(item, i + 1, overrides, notes)));
+    group.items.forEach((item, i) => list.appendChild(_buildItem(item, i + 1, overrides, notes, chances)));
     section.appendChild(list);
 
     return section;
 }
 
-function _buildItem(item, rank, overrides, notes = {}) {
+function _buildItem(item, rank, overrides, notes = {}, chances = {}) {
     const li = document.createElement('li');
     li.className       = 'item';
     li.dataset.itemKey = itemKey(item);
@@ -714,8 +724,18 @@ function _buildItem(item, rank, overrides, notes = {}) {
     const status = (overrides && overrides[itemKey(item)]) || item.status || 'unknown';
     li.dataset.status = status;
 
+    const chance = item.chance || (chances && chances[itemKey(item)]) || '';
+    li.dataset.chance = chance;
+
     const type = getFormationType(item.detail);
     if (type) li.dataset.type = type;
+
+    const chanceBar = document.createElement('div');
+    chanceBar.className = 'item-chance-bar';
+    chanceBar.title     = 'Cliquer pour indiquer la probabilité d\'admission';
+    chanceBar.addEventListener('click',       () => _cycleChance(li));
+    chanceBar.addEventListener('pointerdown', e  => e.stopPropagation());
+    li.appendChild(chanceBar);
 
     li.appendChild(createGrip('drag-handle--item'));
 
@@ -888,6 +908,19 @@ function _cycleStatus(li) {
     storageSave({ ...saved, statusOverrides: overrides });
 
     _applyFilterToDOM();
+}
+
+function _cycleChance(li) {
+    const current = li.dataset.chance || '';
+    const next    = CHANCE_CYCLE[(CHANCE_CYCLE.indexOf(current) + 1) % CHANCE_CYCLE.length];
+    li.dataset.chance = next;
+
+    const saved   = storageLoad() || {};
+    const chances = saved.chanceOverrides || {};
+    if (next) { chances[li.dataset.itemKey] = next; }
+    else       { delete chances[li.dataset.itemKey]; }
+    storageSave({ ...saved, chanceOverrides: chances });
+    _saveCurrentOrder();
 }
 
 // ── Dissolution de groupes ────────────────────────────────────────────────────

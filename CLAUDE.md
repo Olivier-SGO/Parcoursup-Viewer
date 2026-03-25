@@ -103,7 +103,9 @@ Structure sauvegardée :
   "text": "texte brut collé",
   "groupOrder": ["Nom groupe 1", "Nom groupe 2", ...],
   "itemOrders": { "Nom groupe": ["clé1", "clé2", ...] },
-  "statusOverrides": { "clé item": "confirmed|incomplete|unknown" }
+  "statusOverrides": { "clé item": "confirmed|incomplete|unknown" },
+  "chanceOverrides": { "clé item": "sure|probable|unlikely" },
+  "notes": { "clé item": "texte libre" }
 }
 ```
 - Restauration automatique au chargement de la page (DOMContentLoaded)
@@ -118,6 +120,15 @@ Implémenté via pointer events (desktop + iPad) dans `makeSortable(container, c
 ### Statuts modifiables
 Clic sur le badge de statut → cycle `confirmed → incomplete → unknown → confirmed`.
 L'override est sauvegardé immédiatement dans `statusOverrides` du localStorage.
+
+### Probabilité d'admission
+Trait coloré de 6px sur le bord gauche de chaque carte, cliquable pour cycler :
+`'' → 'sure' (vert) → 'probable' (ambre) → 'unlikely' (rouge) → ''`
+L'override est sauvegardé dans `chanceOverrides` du localStorage.
+Inclus dans le snapshot, le sync cloud et l'export texte (🟢/🟡/🔴).
+
+### Notes personnelles
+Champ `contenteditable` sous le nom de chaque item. Sauvegardé dans `notes` du localStorage.
 
 ### Type de formation
 `getFormationType(detail)` détecte depuis le champ `detail` :
@@ -138,6 +149,9 @@ L'override est sauvegardé immédiatement dans `statusOverrides` du localStorage
 - [x] Persistance dans localStorage (texte, ordre, statuts)
 - [x] Statut modifiable manuellement (clic sur le badge)
 - [x] Bouton RAZ (efface la session persistée)
+- [x] Indicateur de probabilité d'admission (trait coloré gauche, 3 niveaux + non défini)
+- [x] Notes personnelles par item (champ éditable)
+- [x] Synchronisation cloud en direct (GitHub Gist ou JSONBlob, lien partageable)
 
 ## Pistes d'évolution
 - [ ] Export CSV
