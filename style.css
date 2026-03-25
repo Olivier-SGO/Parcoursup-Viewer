@@ -731,10 +731,33 @@ button:not(.btn-secondary):not(.btn-export):not(.btn-danger):not(.filter-btn):ho
     line-height: 1.4;
 }
 
-.item-detail {
+.item-note {
     font-size: 0.82rem;
     color: var(--color-text-muted);
-    margin-top: 0.1rem;
+    margin-top: 0.25rem;
+    outline: none;
+    border-radius: 6px;
+    padding: 0.15rem 0.3rem;
+    margin-left: -0.3rem;
+    transition: background 0.15s, color 0.15s;
+    min-height: 1.2em;
+    line-height: 1.4;
+    word-break: break-word;
+}
+
+.item-note:empty::before {
+    content: attr(data-placeholder);
+    color: var(--color-border);
+    pointer-events: none;
+}
+
+.item-note:focus {
+    background: #f0f4ff;
+    color: var(--color-text);
+}
+
+.item-note:not(:empty) {
+    color: #4338ca;
 }
 
 /* ── Type badges ─────────────────────────────────────── */
