@@ -116,6 +116,7 @@ function copyShareLink() {
 const BLOB_API = 'https://jsonblob.com/api/jsonBlob';
 let   _syncTimer    = null;
 let   _pollInterval = null;
+let   _skipNextSync = false; // empêche un push immédiat après un tirage cloud
 
 function _buildSyncPayload() {
     const s = storageLoad() || {};
@@ -242,6 +243,7 @@ function _updateSyncUI() {
 }
 
 function _scheduleSync() {
+    if (_skipNextSync) { _skipNextSync = false; return; }
     const saved = storageLoad();
     if (!saved || !saved.sync || !saved.sync.id) return;
     clearTimeout(_syncTimer);
@@ -317,6 +319,7 @@ async function refreshFromCloud() {
     try {
         const data = provider === 'gist' ? await _gistRead(id) : await _blobRead(id);
         storageSave({ ...saved, ...data, sync: { ...saved.sync, lastPushed: data.lastModified || 0 } });
+        _skipNextSync = true;
         _restoreFromSnapshot(data.snapshot);
         _setSyncStatus('ok');
         _hideUpdateBanner();
@@ -408,6 +411,7 @@ function applyCloudUpdate() {
     if (!data) { _hideUpdateBanner(); return; }
     const saved = storageLoad() || {};
     storageSave({ ...saved, ...data, sync: { ...saved.sync, lastPushed: data.lastModified || 0 } });
+    _skipNextSync = true;
     _restoreFromSnapshot(data.snapshot);
     _hideUpdateBanner();
     _setSyncStatus('ok');
@@ -432,6 +436,7 @@ window.addEventListener('DOMContentLoaded', async () => {
             const token = urlToken || (existing.sync && existing.sync.token) || null;
             storageSave({ ...existing, ...data, sync: { provider, id: cloudId, token, lastPushed: data.lastModified || 0 } });
             history.replaceState(null, '', location.pathname + location.search);
+            _skipNextSync = true;
             _restoreFromSnapshot(data.snapshot);
             return;
         } catch (_) {} // introuvable → continuer avec localStorage
@@ -451,6 +456,18 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
 
     const saved = storageLoad();
+
+    // 0c. Sync active → toujours tirer le cloud au démarrage (évite d'écraser l'état d'un autre appareil)
+    if (saved && saved.sync && saved.sync.id) {
+        try {
+            const { provider, id } = saved.sync;
+            const data = provider === 'gist' ? await _gistRead(id) : await _blobRead(id);
+            storageSave({ ...saved, ...data, sync: { ...saved.sync, lastPushed: data.lastModified || 0 } });
+            _skipNextSync = true;
+            _restoreFromSnapshot(data.snapshot);
+            return;
+        } catch (_) {} // offline → continuer avec localStorage
+    }
 
     // 1. Restauration depuis le texte original (chemin normal)
     if (saved && saved.text) {
