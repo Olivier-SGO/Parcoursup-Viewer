@@ -105,6 +105,100 @@ header h1 {
     box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);
 }
 
+/* Rangée d'actions sous le textarea */
+.input-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-top: 1rem;
+}
+
+.input-actions button { margin-top: 0; }
+
+.input-sep {
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+}
+
+.btn-import-label {
+    display: inline-block;
+    padding: 0.65rem 1.25rem;
+    font-size: 0.92rem;
+    font-weight: 500;
+    color: var(--color-primary);
+    background: white;
+    border: 1px solid var(--color-primary);
+    border-radius: 9999px;
+    cursor: pointer;
+    transition: background 0.15s;
+    box-shadow: none;
+}
+
+.btn-import-label:hover {
+    background: #eff6ff;
+}
+
+/* Barre de synchronisation multi-appareils */
+.sync-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.875rem;
+    padding: 0.625rem 0.875rem;
+    background: white;
+    border-radius: var(--radius-item);
+    border: 1px solid rgba(37, 99, 235, 0.1);
+    box-shadow: var(--shadow-item);
+}
+
+.sync-label {
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    flex-shrink: 0;
+}
+
+.btn-share {
+    margin-top: 0;
+    padding: 0.3rem 0.85rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    background: var(--color-primary);
+    color: white;
+    border: none;
+    border-radius: 9999px;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
+    transition: background 0.15s, box-shadow 0.15s;
+}
+
+.btn-share:hover {
+    background: var(--color-primary-hover);
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
+}
+
+.btn-export-json {
+    margin-top: 0;
+    padding: 0.3rem 0.85rem;
+    font-size: 0.82rem;
+    font-weight: 500;
+    background: transparent;
+    color: var(--color-text-muted);
+    border: 1px solid var(--color-border);
+    border-radius: 9999px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    box-shadow: none;
+}
+
+.btn-export-json:hover {
+    background: #f0f4ff;
+    color: var(--color-primary);
+    border-color: #c7d8fc;
+    box-shadow: none;
+}
+
 .input-section label {
     display: block;
     font-weight: 500;

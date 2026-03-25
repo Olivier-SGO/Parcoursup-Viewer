@@ -25,7 +25,12 @@
                 rows="14"
                 spellcheck="false"
             ></textarea>
-            <button id="analyzeBtn" onclick="analyze()">Analyser mes vœux</button>
+            <div class="input-actions">
+                <button id="analyzeBtn" onclick="analyze()">Analyser mes vœux</button>
+                <span class="input-sep">ou</span>
+                <label class="btn-import-label" for="importFile">↑ Importer une sauvegarde (.json)</label>
+                <input type="file" id="importFile" accept=".json" hidden onchange="importJSON(event)">
+            </div>
         </section>
 
         <section class="results-section" id="resultsSection" hidden>
@@ -37,6 +42,11 @@
                     <button class="btn-secondary" onclick="reset()">← Modifier le texte</button>
                     <button class="btn-danger" onclick="clearAll()">Tout effacer</button>
                 </div>
+            </div>
+            <div class="sync-bar">
+                <span class="sync-label">Synchroniser entre appareils :</span>
+                <button class="btn-share" onclick="copyShareLink()">🔗 Copier le lien de partage</button>
+                <button class="btn-export-json" onclick="exportJSON()">↓ Exporter (.json)</button>
             </div>
 
             <div class="filter-bar">
