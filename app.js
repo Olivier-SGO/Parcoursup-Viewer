@@ -129,7 +129,7 @@ async function _gistCreate(token, data) {
         headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
         body: JSON.stringify({
             description: 'Parcoursup Viewer – classement',
-            public: false,
+            public: true,
             files: { 'parcoursup.json': { content: JSON.stringify(data) } },
         }),
     });
