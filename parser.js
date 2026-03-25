@@ -10,6 +10,13 @@ function isFormationLine(line) {
     return /^(Formation d[''']|BUT -|CPGE -|Licence -|Bachelor|Diplôme national de technologie)/.test(line);
 }
 
+/** Extrait la spécialité depuis une ligne "BUT - Mesures Physiques" → "Mesures Physiques" */
+function _butSpecialty(formation) {
+    if (!formation) return null;
+    const m = formation.match(/^BUT\s+-\s+(.+)$/);
+    return m ? m[1].trim() : null;
+}
+
 // ── Block parser ─────────────────────────────────────────────────────────────
 
 /**
@@ -203,8 +210,9 @@ function extractDisplayItems(group) {
                     status: sv.status
                 }));
             } else {
+                const specialty = _butSpecialty(sv.formation);
                 items.push({
-                    name: sv.name,
+                    name: specialty ? sv.name + ' – ' + specialty : sv.name,
                     detail: sv.formation,
                     status: sv.status
                 });
