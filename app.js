@@ -2,9 +2,10 @@
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
-let allGroups       = [];
-let activeFilter    = 'all';
+let allGroups        = [];
+let activeFilter     = 'all';
 let activeTypeFilter = null;
+let mergeMode        = false;
 const STORAGE_KEY = 'parcoursup_v1';
 
 // ── Formation type ────────────────────────────────────────────────────────────
@@ -43,6 +44,8 @@ function storageLoad() {
 
 window.addEventListener('DOMContentLoaded', () => {
     const saved = storageLoad();
+
+    // 1. Restauration depuis le texte original (chemin normal)
     if (saved && saved.text) {
         try {
             const parsed = parseParcoursupText(saved.text);
@@ -54,7 +57,53 @@ window.addEventListener('DOMContentLoaded', () => {
             }
         } catch (_) {}
     }
+
+    // 2. Restauration depuis le snapshot DOM (texte absent ou inutilisable)
+    if (saved && saved.snapshot && saved.snapshot.length > 0) {
+        _restoreFromSnapshot(saved.snapshot);
+        return;
+    }
+
+    // 3. Données partielles détectées → afficher le bouton "Reprendre"
+    if (saved && (saved.groupOrder || saved.snapshot)) {
+        const hint = document.getElementById('resumeHint');
+        if (hint) hint.hidden = false;
+    }
 });
+
+function resumeSession() {
+    const saved = storageLoad();
+    if (!saved) return;
+    if (saved.text) {
+        try {
+            const parsed = parseParcoursupText(saved.text);
+            if (parsed.length > 0) {
+                prepareGroups(parsed);
+                applyStoredOrder(saved);
+                _showResults();
+                return;
+            }
+        } catch (_) {}
+    }
+    if (saved.snapshot && saved.snapshot.length > 0) {
+        _restoreFromSnapshot(saved.snapshot);
+    }
+}
+
+function _restoreFromSnapshot(snapshot) {
+    allGroups = snapshot.map(g => ({
+        name:  g.groupName,
+        items: g.items.map(i => ({ name: i.name, detail: i.detail, status: i.status })),
+    }));
+    _showResults();
+}
+
+function importMore() {
+    mergeMode = true;
+    document.getElementById('pasteArea').value       = '';
+    document.getElementById('inputSection').hidden   = false;
+    document.getElementById('resultsSection').hidden = true;
+}
 
 // ── Public actions ─────────────────────────────────────────────────────────────
 
@@ -73,12 +122,23 @@ function analyze() {
         );
         return;
     }
-    prepareGroups(parsed);
-    const saved = storageLoad();
-    if (saved && saved.text === text) {
-        applyStoredOrder(saved);
+
+    if (mergeMode) {
+        // Fusionner avec les groupes existants (ignorer les doublons de nom)
+        const existingNames = new Set(allGroups.map(g => g.name));
+        const newGroups = parsed
+            .map(g => ({ name: g.name, items: extractDisplayItems(g) }))
+            .filter(g => g.items.length > 0 && !existingNames.has(g.name));
+        allGroups.push(...newGroups);
+        mergeMode = false;
     } else {
-        storageSave({ text });
+        prepareGroups(parsed);
+        const saved = storageLoad();
+        if (saved && saved.text === text) {
+            applyStoredOrder(saved);
+        } else {
+            storageSave({ text });
+        }
     }
     _showResults();
 }
@@ -88,6 +148,7 @@ function reset() {
     allGroups        = [];
     activeFilter     = 'all';
     activeTypeFilter = null;
+    mergeMode        = false;
     document.getElementById('pasteArea').value            = '';
     document.getElementById('resultsContainer').innerHTML = '';
     document.getElementById('inputSection').hidden        = false;
@@ -225,8 +286,20 @@ function _saveCurrentOrder() {
     }
     const headlessGroups = [...container.querySelectorAll('.group-section--headless')]
         .map(el => el.dataset.groupName);
+
+    // Snapshot complet : permet de restaurer sans re-parser le texte original
+    const snapshot = [...container.querySelectorAll('.group-section')].map(sec => ({
+        groupName: sec.dataset.groupName,
+        headless:  sec.classList.contains('group-section--headless'),
+        items: [...sec.querySelectorAll('.item')].map(li => ({
+            name:   li.querySelector('.item-name').textContent,
+            detail: li.querySelector('.item-detail')?.textContent || '',
+            status: li.dataset.status,
+        })),
+    }));
+
     const saved = storageLoad() || {};
-    storageSave({ ...saved, groupOrder, itemOrders, headlessGroups });
+    storageSave({ ...saved, groupOrder, itemOrders, headlessGroups, snapshot });
 }
 
 // ── Rendering ──────────────────────────────────────────────────────────────────
@@ -235,6 +308,7 @@ function _showResults() {
     _renderResults();
     document.getElementById('inputSection').hidden   = true;
     document.getElementById('resultsSection').hidden = false;
+    _saveCurrentOrder(); // Snapshot initial pour restauration sans re-parsing
 }
 
 function _renderResults() {

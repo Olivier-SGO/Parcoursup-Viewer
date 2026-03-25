@@ -14,6 +14,10 @@
         </header>
 
         <section class="input-section" id="inputSection">
+            <div class="resume-hint" id="resumeHint" hidden>
+                <span class="resume-hint__text">Session sauvegardée</span>
+                <button class="btn-resume" onclick="resumeSession()">Retrouver mes vœux →</button>
+            </div>
             <label for="pasteArea">Collez le texte copié depuis votre page de vœux Parcoursup :</label>
             <textarea
                 id="pasteArea"
@@ -29,8 +33,9 @@
                 <h2>Vos sous-vœux</h2>
                 <div class="results-actions">
                     <button class="btn-export" onclick="exportRanking()">Copier le classement</button>
+                    <button class="btn-secondary" onclick="importMore()">+ Importer d'autres vœux</button>
                     <button class="btn-secondary" onclick="reset()">← Modifier le texte</button>
-                    <button class="btn-danger" onclick="clearAll()">Effacer</button>
+                    <button class="btn-danger" onclick="clearAll()">Tout effacer</button>
                 </div>
             </div>
 
