@@ -23,7 +23,9 @@ const TYPE_SLUGS = {
     'DNT':       'dnt',
 };
 
-function getFormationType(detail) {
+function getFormationType(detail, name = '') {
+    // "Bachelor" dans le nom prend priorité (ex: "Icam - Bachelor international…")
+    if (/\bBachelor\b/i.test(name)) return 'Bachelor';
     if (!detail) return null;
     if (/^Formation d[''']/.test(detail)) return 'Ingénieur';
     if (detail.startsWith('BUT -'))    return 'BUT';
@@ -112,7 +114,8 @@ function copyShareLink() {
 // Fragment URL de partage : #gist:GIST_ID  ou  #blob:BLOB_ID
 
 const BLOB_API = 'https://jsonblob.com/api/jsonBlob';
-let   _syncTimer = null;
+let   _syncTimer    = null;
+let   _pollInterval = null;
 
 function _buildSyncPayload() {
     const s = storageLoad() || {};
@@ -124,6 +127,7 @@ function _buildSyncPayload() {
         notes:           s.notes            || {},
         groupOrder:      s.groupOrder      || [],
         itemOrders:      s.itemOrders      || {},
+        lastModified:    Date.now(),
     };
 }
 
@@ -228,8 +232,10 @@ function _updateSyncUI() {
     const sync  = saved && saved.sync;
     if (sync && sync.id) {
         _renderSyncBarActive(container);
+        _startPolling();
     } else {
         _renderSyncBarInactive(container);
+        _stopPolling();
     }
     const setup = document.getElementById('syncSetup');
     if (setup) setup.hidden = true;
@@ -254,7 +260,11 @@ async function _pushSync() {
         } else {
             await _blobUpdate(id, payload);
         }
+        // Mémoriser l'horodatage de notre dernière écriture pour détecter les modifications externes
+        const s = storageLoad() || {};
+        storageSave({ ...s, sync: { ...s.sync, lastPushed: payload.lastModified } });
         _setSyncStatus('ok');
+        _hideUpdateBanner();
     } catch (_) {
         _setSyncStatus('error');
     }
@@ -306,9 +316,10 @@ async function refreshFromCloud() {
     _setSyncStatus('pending');
     try {
         const data = provider === 'gist' ? await _gistRead(id) : await _blobRead(id);
-        storageSave({ ...saved, ...data });
+        storageSave({ ...saved, ...data, sync: { ...saved.sync, lastPushed: data.lastModified || 0 } });
         _restoreFromSnapshot(data.snapshot);
         _setSyncStatus('ok');
+        _hideUpdateBanner();
     } catch (_) {
         _setSyncStatus('error');
     }
@@ -341,7 +352,65 @@ function disconnectSync() {
     if (!saved) return;
     delete saved.sync;
     storageSave(saved);
+    _stopPolling();
     _updateSyncUI();
+}
+
+// ── Polling cloud (lecture automatique toutes les 30 s) ────────────────────────
+
+function _startPolling() {
+    _stopPolling();
+    _pollInterval = setInterval(_pollCloud, 30000);
+}
+
+function _stopPolling() {
+    if (_pollInterval) { clearInterval(_pollInterval); _pollInterval = null; }
+}
+
+async function _pollCloud() {
+    const saved = storageLoad();
+    if (!saved || !saved.sync || !saved.sync.id) { _stopPolling(); return; }
+    const { provider, id } = saved.sync;
+    try {
+        const data = provider === 'gist' ? await _gistRead(id) : await _blobRead(id);
+        const remoteTs = data.lastModified || 0;
+        const localTs  = saved.sync.lastPushed || 0;
+        if (remoteTs > localTs) {
+            _showUpdateBanner(data);
+        }
+    } catch (_) {} // silencieux si offline ou backend indisponible
+}
+
+function _showUpdateBanner(remoteData) {
+    let banner = document.getElementById('cloudUpdateBanner');
+    if (banner) return; // déjà visible
+    banner = document.createElement('div');
+    banner.id        = 'cloudUpdateBanner';
+    banner.className = 'cloud-update-banner';
+    banner.innerHTML =
+        '<span>☁ Modifications depuis un autre appareil</span>' +
+        '<button class="btn-banner-apply" onclick="applyCloudUpdate()">Appliquer</button>' +
+        '<button class="btn-banner-dismiss" onclick="_hideUpdateBanner()" title="Ignorer">✕</button>';
+    // Stocker les données distantes sur le banner pour l'appliquer plus tard
+    banner._remoteData = remoteData;
+    const resultsSection = document.getElementById('resultsSection');
+    if (resultsSection) resultsSection.prepend(banner);
+}
+
+function _hideUpdateBanner() {
+    const banner = document.getElementById('cloudUpdateBanner');
+    if (banner) banner.remove();
+}
+
+function applyCloudUpdate() {
+    const banner = document.getElementById('cloudUpdateBanner');
+    const data   = banner && banner._remoteData;
+    if (!data) { _hideUpdateBanner(); return; }
+    const saved = storageLoad() || {};
+    storageSave({ ...saved, ...data, sync: { ...saved.sync, lastPushed: data.lastModified || 0 } });
+    _restoreFromSnapshot(data.snapshot);
+    _hideUpdateBanner();
+    _setSyncStatus('ok');
 }
 
 // ── Startup ───────────────────────────────────────────────────────────────────
@@ -361,7 +430,7 @@ window.addEventListener('DOMContentLoaded', async () => {
             const data = isGist ? await _gistRead(cloudId) : await _blobRead(cloudId);
             const existing = storageLoad() || {};
             const token = urlToken || (existing.sync && existing.sync.token) || null;
-            storageSave({ ...existing, ...data, sync: { provider, id: cloudId, token } });
+            storageSave({ ...existing, ...data, sync: { provider, id: cloudId, token, lastPushed: data.lastModified || 0 } });
             history.replaceState(null, '', location.pathname + location.search);
             _restoreFromSnapshot(data.snapshot);
             return;
@@ -727,7 +796,7 @@ function _buildItem(item, rank, overrides, notes = {}, chances = {}) {
     const chance = item.chance || (chances && chances[itemKey(item)]) || '';
     li.dataset.chance = chance;
 
-    const type = getFormationType(item.detail);
+    const type = getFormationType(item.detail, item.name);
     if (type) li.dataset.type = type;
 
     const chanceBar = document.createElement('div');
@@ -833,7 +902,7 @@ function _populateTypeFilter() {
 
     const types = [...new Set(
         allGroups.flatMap(g => g.items)
-            .map(i => getFormationType(i.detail))
+            .map(i => getFormationType(i.detail, i.name))
             .filter(Boolean)
     )];
 
