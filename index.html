@@ -43,10 +43,8 @@
                     <button class="btn-danger" onclick="clearAll()">Tout effacer</button>
                 </div>
             </div>
-            <div class="sync-bar">
-                <span class="sync-label">Synchroniser entre appareils :</span>
-                <button class="btn-share" onclick="copyShareLink()">🔗 Copier le lien de partage</button>
-                <button class="btn-export-json" onclick="exportJSON()">↓ Exporter (.json)</button>
+            <div class="sync-bar" id="syncBar">
+                <!-- Peuplé dynamiquement par _updateSyncUI() -->
             </div>
 
             <div class="filter-bar">
