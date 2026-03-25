@@ -482,7 +482,8 @@ function reset() {
     activeFilter     = 'all';
     activeTypeFilter = null;
     mergeMode        = false;
-    document.getElementById('pasteArea').value            = '';
+    const saved = storageLoad();
+    document.getElementById('pasteArea').value            = (saved && saved.text) || '';
     document.getElementById('resultsContainer').innerHTML = '';
     document.getElementById('inputSection').hidden        = false;
     document.getElementById('resultsSection').hidden      = true;
