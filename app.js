@@ -2,8 +2,9 @@
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
-let allGroups    = [];
-let activeFilter = 'all';
+let allGroups       = [];
+let activeFilter    = 'all';
+let activeTypeFilter = null;
 const STORAGE_KEY = 'parcoursup_v1';
 
 // ── Formation type ────────────────────────────────────────────────────────────
@@ -84,8 +85,9 @@ function analyze() {
 
 // Retour au formulaire sans effacer la session sauvegardée
 function reset() {
-    allGroups    = [];
-    activeFilter = 'all';
+    allGroups        = [];
+    activeFilter     = 'all';
+    activeTypeFilter = null;
     document.getElementById('pasteArea').value            = '';
     document.getElementById('resultsContainer').innerHTML = '';
     document.getElementById('inputSection').hidden        = false;
@@ -93,6 +95,8 @@ function reset() {
     document.querySelectorAll('.filter-btn').forEach(b => {
         b.classList.toggle('active', b.dataset.filter === 'all');
     });
+    const tb = document.getElementById('typeFilterBar');
+    if (tb) tb.hidden = true;
 }
 
 // RAZ complète : efface la session persistée et revient à l'état initial
@@ -103,8 +107,16 @@ function clearAll() {
 
 function applyFilter(filter) {
     activeFilter = filter;
-    document.querySelectorAll('.filter-btn').forEach(b => {
+    document.querySelectorAll('.filter-btn[data-filter]').forEach(b => {
         b.classList.toggle('active', b.dataset.filter === filter);
+    });
+    _applyFilterToDOM();
+}
+
+function applyTypeFilter(type) {
+    activeTypeFilter = type;
+    document.querySelectorAll('#typeFilterBar .filter-btn').forEach(b => {
+        b.classList.toggle('active', (b.dataset.type || null) === activeTypeFilter);
     });
     _applyFilterToDOM();
 }
@@ -197,6 +209,9 @@ function applyStoredOrder(saved) {
             if (g) g.items.push(item);
         }
     }
+
+    // 5. Supprimer les groupes vidés (dissous par un déplacement inter-groupes)
+    allGroups.splice(0, allGroups.length, ...allGroups.filter(g => g.items.length > 0));
 }
 
 function _saveCurrentOrder() {
@@ -208,8 +223,10 @@ function _saveCurrentOrder() {
         itemOrders[section.dataset.groupName] = [...section.querySelectorAll('.item')]
             .map(el => el.dataset.itemKey);
     }
+    const headlessGroups = [...container.querySelectorAll('.group-section--headless')]
+        .map(el => el.dataset.groupName);
     const saved = storageLoad() || {};
-    storageSave({ ...saved, groupOrder, itemOrders });
+    storageSave({ ...saved, groupOrder, itemOrders, headlessGroups });
 }
 
 // ── Rendering ──────────────────────────────────────────────────────────────────
@@ -221,14 +238,20 @@ function _showResults() {
 }
 
 function _renderResults() {
-    const container = document.getElementById('resultsContainer');
-    container.innerHTML = '';
+    const container      = document.getElementById('resultsContainer');
+    container.innerHTML  = '';
 
-    const saved     = storageLoad();
-    const overrides = (saved && saved.statusOverrides) ? saved.statusOverrides : {};
+    const saved          = storageLoad();
+    const overrides      = (saved && saved.statusOverrides) ? saved.statusOverrides : {};
+    const headlessGroups = (saved && saved.headlessGroups)  ? saved.headlessGroups  : [];
 
     for (const group of allGroups) {
-        container.appendChild(_buildGroupSection(group, overrides));
+        const sec = _buildGroupSection(group, overrides);
+        if (headlessGroups.includes(group.name)) {
+            sec.querySelector('.group-header').hidden = true;
+            sec.classList.add('group-section--headless');
+        }
+        container.appendChild(sec);
     }
 
     // Drag groupes (réordonner les blocs)
@@ -237,6 +260,7 @@ function _renderResults() {
     // Drag items : zone globale — permet le déplacement ENTRE groupes
     makeItemsSortable(container, _saveCurrentOrder);
 
+    _populateTypeFilter();
     _applyFilterToDOM();
 }
 
@@ -351,19 +375,53 @@ function createGrip(extraClass) {
 
 // ── Filter ────────────────────────────────────────────────────────────────────
 
+function _populateTypeFilter() {
+    const typeBar = document.getElementById('typeFilterBar');
+    if (!typeBar) return;
+
+    const types = [...new Set(
+        allGroups.flatMap(g => g.items)
+            .map(i => getFormationType(i.detail))
+            .filter(Boolean)
+    )];
+
+    if (types.length < 2) { typeBar.hidden = true; return; }
+
+    typeBar.hidden   = false;
+    typeBar.innerHTML = '<span class="filter-label">Type :</span>';
+
+    const allBtn = document.createElement('button');
+    allBtn.className   = 'filter-btn' + (activeTypeFilter === null ? ' active' : '');
+    allBtn.dataset.type = '';
+    allBtn.textContent  = 'Tous';
+    allBtn.onclick = () => applyTypeFilter(null);
+    typeBar.appendChild(allBtn);
+
+    for (const type of types) {
+        const slug = TYPE_SLUGS[type] || '';
+        const btn  = document.createElement('button');
+        btn.className   = `filter-btn filter-btn--type ${slug}${activeTypeFilter === type ? ' active' : ''}`;
+        btn.dataset.type = type;
+        btn.textContent  = type;
+        btn.onclick = () => applyTypeFilter(type);
+        typeBar.appendChild(btn);
+    }
+}
+
 function _applyFilterToDOM() {
     const container = document.getElementById('resultsContainer');
     for (const section of container.querySelectorAll('.group-section')) {
         let visible = 0;
         for (const item of section.querySelectorAll('.item')) {
-            const show = activeFilter === 'all' || item.dataset.status === activeFilter;
-            item.hidden = !show;
-            if (show) visible++;
+            const statusOk = activeFilter === 'all' || item.dataset.status === activeFilter;
+            const typeOk   = !activeTypeFilter || item.dataset.type === activeTypeFilter;
+            item.hidden    = !(statusOk && typeOk);
+            if (!item.hidden) visible++;
         }
         _updateRanks(section);
         section.hidden = visible === 0;
-        section.querySelector('.item-count').textContent =
-            `${visible} sous-vœu${visible > 1 ? 'x' : ''}`;
+        const countEl  = section.querySelector('.item-count');
+        if (countEl) countEl.textContent = `${visible} sous-vœu${visible > 1 ? 'x' : ''}`;
     }
 }
 
@@ -400,6 +458,28 @@ function _cycleStatus(li) {
     _applyFilterToDOM();
 }
 
+// ── Dissolution de groupes ────────────────────────────────────────────────────
+
+// Quand un item quitte son groupe d'origine : fusionne les deux sections en
+// supprimant leur entête, de façon à obtenir une liste plate sans groupe.
+function _mergeGroupSections(srcSection, dstSection) {
+    // Quelle section est au-dessus dans le DOM ?
+    const isSrcFirst = !!(srcSection.compareDocumentPosition(dstSection) & Node.DOCUMENT_POSITION_FOLLOWING);
+    const [topSec, botSec] = isSrcFirst ? [srcSection, dstSection] : [dstSection, srcSection];
+
+    // Déplacer les items de la section du bas dans celle du haut
+    const list     = topSec.querySelector('.items-list');
+    const botItems = [...botSec.querySelectorAll('.item')];
+    botItems.forEach(item => list.appendChild(item));
+
+    // Marquer la section résultante comme "sans entête"
+    topSec.querySelector('.group-header').hidden = true;
+    topSec.classList.add('group-section--headless');
+
+    // Supprimer la section vidée
+    botSec.remove();
+}
+
 // ── Drag-and-drop sortable (pointer events — desktop + iPad) ──────────────────
 //
 // Règles clés :
@@ -423,6 +503,7 @@ function makeItemsSortable(resultsContainer, onReorder) {
         ph.style.height = child.getBoundingClientRect().height + 'px';
         child.after(ph);
 
+        const srcSection = child.closest('.group-section');
         child.setPointerCapture(e.pointerId);
 
         // Retourne la .items-list du groupe sous le pointeur (Y)
@@ -458,11 +539,16 @@ function makeItemsSortable(resultsContainer, onReorder) {
             ph.replaceWith(child);
             child.classList.remove('dragging');
             document.body.style.userSelect = '';
-            child.removeEventListener('pointermove', onMove);
-            child.removeEventListener('pointerup',   onUp);
+            child.removeEventListener('pointermove',   onMove);
+            child.removeEventListener('pointerup',     onUp);
             child.removeEventListener('pointercancel', onUp);
-            // Mise à jour rangs et compteurs pour tous les groupes
-            resultsContainer.querySelectorAll('.group-section').forEach(_updateRanks);
+
+            // Si l'item a changé de groupe → dissoudre les deux blocs
+            const dstSection = child.closest('.group-section');
+            if (dstSection && dstSection !== srcSection) {
+                _mergeGroupSections(srcSection, dstSection);
+            }
+
             _applyFilterToDOM();
             onReorder();
         }
