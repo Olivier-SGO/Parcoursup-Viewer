@@ -23,7 +23,9 @@ const TYPE_SLUGS = {
     'DNT':       'dnt',
 };
 
-function getFormationType(detail) {
+function getFormationType(detail, name = '') {
+    // "Bachelor" dans le nom prend priorité (ex: "Icam - Bachelor international…")
+    if (/\bBachelor\b/i.test(name)) return 'Bachelor';
     if (!detail) return null;
     if (/^Formation d[''']/.test(detail)) return 'Ingénieur';
     if (detail.startsWith('BUT -'))    return 'BUT';
@@ -794,7 +796,7 @@ function _buildItem(item, rank, overrides, notes = {}, chances = {}) {
     const chance = item.chance || (chances && chances[itemKey(item)]) || '';
     li.dataset.chance = chance;
 
-    const type = getFormationType(item.detail);
+    const type = getFormationType(item.detail, item.name);
     if (type) li.dataset.type = type;
 
     const chanceBar = document.createElement('div');
@@ -900,7 +902,7 @@ function _populateTypeFilter() {
 
     const types = [...new Set(
         allGroups.flatMap(g => g.items)
-            .map(i => getFormationType(i.detail))
+            .map(i => getFormationType(i.detail, i.name))
             .filter(Boolean)
     )];
 
