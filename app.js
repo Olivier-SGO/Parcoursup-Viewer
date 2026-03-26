@@ -224,6 +224,7 @@ function _renderSyncBarActive(container, paused) {
         ? '<span class="sync-status-text paused">✎ Mode local</span>' +
           '<button class="btn-sync-action btn-sync-resume" onclick="resumeSync()" title="Reprendre la synchronisation cloud">☁ Rejoindre</button>' +
           '<button class="btn-sync-action btn-sync-disconnect" onclick="disconnectSync()" title="Désactiver définitivement">✕ Déconnecter</button>' +
+          '<label class="btn-export-json btn-import-results" title="Importer une sauvegarde JSON">↑ Importer<input type="file" accept=".json" hidden onchange="importJSON(event)"></label>' +
           '<button class="btn-export-json" onclick="exportJSON()">↓ Exporter</button>'
         : '<span id="syncStatusText" class="sync-status-text ok">☁ Synchronisé</span>' +
           '<button class="btn-cloud-link" onclick="copyCloudLink()">🔗 Copier le lien</button>' +
